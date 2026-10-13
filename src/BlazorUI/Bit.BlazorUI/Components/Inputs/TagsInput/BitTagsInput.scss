@@ -1,10 +1,10 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the elements and never declared here, so a value set on :root re-skins every
-// tags input and one set on the Style of an instance re-skins that one alone:
+// tags input and one set on the Style of an instance re-skins that one and the tags inputs nested in it:
 //   --bit-TagsInput-font-size               text size of the field                            (default: $tg-fs-sm)
 //   --bit-TagsInput-color                   color of the typed text                           (default: $clr-fg-pri)
-//   --bit-TagsInput-placeholder-color       color of the placeholder                          (default: $clr-fg-ter)
+//   --bit-TagsInput-placeholder-color       color of the placeholder                          (default: $clr-fg-sec)
 //   --bit-TagsInput-label-color             color of the label above the field                (default: $clr-fg-pri)
 //   --bit-TagsInput-required-color          color of the asterisk a Required label carries    (default: $clr-req)
 //   --bit-TagsInput-description-color       color of the helper text under the field          (default: $clr-fg-sec)
@@ -52,6 +52,42 @@
 //   --bit-TagsInput-clear-hover-color       the clear button under the pointer                (default: $clr-fg-pri)
 //   --bit-TagsInput-toggle-hover-color      text of the hovered chip that folds the tags      (default: per tag variant)
 //   --bit-TagsInput-toggle-hover-background fill of that chip while it is hovered             (default: per tag variant)
+//                                           The field colors have a twin per Variant, read ahead of the shared one,
+//                                           so a theme can set one look of the field apart from the other two,
+//   --bit-TagsInput-fill-background                 fill of the field, Fill variant                     (default: --bit-TagsInput-background)
+//   --bit-TagsInput-fill-border-color               rule around the field, Fill variant                 (default: --bit-TagsInput-border-color)
+//   --bit-TagsInput-fill-hover-border-color         rule around the hovered field, Fill variant         (default: --bit-TagsInput-hover-border-color)
+//   --bit-TagsInput-outline-background              fill of the field, Outline variant                  (default: --bit-TagsInput-background)
+//   --bit-TagsInput-outline-border-color            rule around the field, Outline variant              (default: --bit-TagsInput-border-color)
+//   --bit-TagsInput-outline-hover-border-color      rule around the hovered field, Outline variant      (default: --bit-TagsInput-hover-border-color)
+//   --bit-TagsInput-text-background                 fill of the field, Text variant                     (default: --bit-TagsInput-background)
+//   --bit-TagsInput-text-border-color               rule around the field, Text variant                 (default: --bit-TagsInput-border-color)
+//   --bit-TagsInput-text-hover-border-color         rule around the hovered field, Text variant         (default: --bit-TagsInput-hover-border-color)
+//                                           and the chip colors a twin per TagVariant, named the same way:
+//   --bit-TagsInput-fill-tag-color                  text of a chip, Fill tag variant                    (default: --bit-TagsInput-tag-color)
+//   --bit-TagsInput-fill-tag-background             fill of a chip, Fill tag variant                    (default: --bit-TagsInput-tag-background)
+//   --bit-TagsInput-fill-tag-border-color           rule of a chip, Fill tag variant                    (default: --bit-TagsInput-tag-border-color)
+//   --bit-TagsInput-fill-tag-focus-color            inset ring of a chip, Fill tag variant              (default: --bit-TagsInput-tag-focus-color)
+//   --bit-TagsInput-fill-tag-hover-color            text of a hovered opening chip, Fill tag variant    (default: --bit-TagsInput-tag-hover-color)
+//   --bit-TagsInput-fill-tag-hover-background       fill and rule of that chip, Fill tag variant        (default: --bit-TagsInput-tag-hover-background)
+//   --bit-TagsInput-fill-toggle-hover-color         text of the hovered fold chip, Fill tag variant     (default: --bit-TagsInput-toggle-hover-color)
+//   --bit-TagsInput-fill-toggle-hover-background    fill of that chip, Fill tag variant                 (default: --bit-TagsInput-toggle-hover-background)
+//   --bit-TagsInput-outline-tag-color               text of a chip, Outline tag variant                 (default: --bit-TagsInput-tag-color)
+//   --bit-TagsInput-outline-tag-background          fill of a chip, Outline tag variant                 (default: --bit-TagsInput-tag-background)
+//   --bit-TagsInput-outline-tag-border-color        rule of a chip, Outline tag variant                 (default: --bit-TagsInput-tag-border-color)
+//   --bit-TagsInput-outline-tag-focus-color         inset ring of a chip, Outline tag variant           (default: --bit-TagsInput-tag-focus-color)
+//   --bit-TagsInput-outline-tag-hover-color         text of a hovered opening chip, Outline tag variant (default: --bit-TagsInput-tag-hover-color)
+//   --bit-TagsInput-outline-tag-hover-background    fill and rule of that chip, Outline tag variant     (default: --bit-TagsInput-tag-hover-background)
+//   --bit-TagsInput-outline-toggle-hover-color      text of the hovered fold chip, Outline tag variant  (default: --bit-TagsInput-toggle-hover-color)
+//   --bit-TagsInput-outline-toggle-hover-background fill of that chip, Outline tag variant              (default: --bit-TagsInput-toggle-hover-background)
+//   --bit-TagsInput-text-tag-color                  text of a chip, Text tag variant                    (default: --bit-TagsInput-tag-color)
+//   --bit-TagsInput-text-tag-background             fill of a chip, Text tag variant                    (default: --bit-TagsInput-tag-background)
+//   --bit-TagsInput-text-tag-border-color           rule of a chip, Text tag variant                    (default: --bit-TagsInput-tag-border-color)
+//   --bit-TagsInput-text-tag-focus-color            inset ring of a chip, Text tag variant              (default: --bit-TagsInput-tag-focus-color)
+//   --bit-TagsInput-text-tag-hover-color            text of a hovered opening chip, Text tag variant    (default: --bit-TagsInput-tag-hover-color)
+//   --bit-TagsInput-text-tag-hover-background       fill and rule of that chip, Text tag variant        (default: --bit-TagsInput-tag-hover-background)
+//   --bit-TagsInput-text-toggle-hover-color         text of the hovered fold chip, Text tag variant     (default: --bit-TagsInput-toggle-hover-color)
+//   --bit-TagsInput-text-toggle-hover-background    fill of that chip, Text tag variant                 (default: --bit-TagsInput-toggle-hover-background)
 //
 // A parameter written on the field wins over the variable that restyles what it sets: an explicit Color over
 // every chip color it paints (per tag variant - the fill of a Fill chip, the rule and text of an Outline one,
@@ -62,6 +98,9 @@
 // Color leaves alone - the field's own surface and rule, the transparent parts of an Outline or Text chip, the
 // label, affix and helper colors - stays the variables'. A state the field is in (disabled, invalid, a refused
 // tag) still paints over all of them, as before.
+
+$tgi-private-properties: clr, clr-txt, clr-hover, clr-focus, gap, fontsize, iconsize, helperfontsize, tagfontsize,
+                         minheight, padding, tagminheight, tagpadding;
 
 .bit-tgi {
     font-weight: $tg-fw-regular;
@@ -74,19 +113,9 @@
     // tags input placed in a template of another one from inheriting the outer one's choice, and it is what
     // lets each read below rank an explicit parameter first, then the public variable, then the primary,
     // medium field an unset parameter stands for.
-    --bit-tgi-clr: initial;
-    --bit-tgi-clr-txt: initial;
-    --bit-tgi-clr-hover: initial;
-    --bit-tgi-clr-focus: initial;
-    --bit-tgi-gap: initial;
-    --bit-tgi-fontsize: initial;
-    --bit-tgi-iconsize: initial;
-    --bit-tgi-helperfontsize: initial;
-    --bit-tgi-tagfontsize: initial;
-    --bit-tgi-minheight: initial;
-    --bit-tgi-padding: initial;
-    --bit-tgi-tagminheight: initial;
-    --bit-tgi-tagpadding: initial;
+    @each $name in $tgi-private-properties {
+        --bit-tgi-#{$name}: initial;
+    }
 }
 
 .bit-tgi-lbl {
@@ -182,6 +211,11 @@
     border-radius: var(--bit-TagsInput-radius, #{$shp-radius-control});
     border-width: var(--bit-TagsInput-border-width, #{$shp-border-width});
     transition: border-color $mot-duration-short $mot-easing, background-color $mot-duration-short $mot-easing;
+    //the hover and the focus of the field change these rather than its colors, which only the variant and the
+    //state of the field paint (further down): a field the app paints through Classes keeps that paint under
+    //the pointer and while focused, instead of losing it to a state that outranks the app's class.
+    --bit-tgi-cnt-brd: initial;
+    --bit-tgi-cnt-bg: initial;
 }
 
 //the tags share the wrapping line of the container above rather than forming a box of their own, while
@@ -200,13 +234,18 @@
     //The three colors are read out of custom properties the tag variant sets rather than being painted by
     //the variant itself, which keeps this rule as specific as a single class: a class of its own, handed
     //to a chip through Classes, GetTagClass or a scoped stylesheet, has to be able to repaint it. Each is
-    //ranked the Color's first (unset while the Color is), then the public variable, then the primary chip
-    //of the tag variant.
+    //ranked the Color's first (unset while the Color is), then the public variables and the primary chip of
+    //the tag variant, which the tag variant resolves on the chip (the -pub values, see .bit-tgi-tgf).
+    //The hover of a chip a click opens moves the -s* values rather than the colors, so this stays the one
+    //rule painting the chip and a class handed to it keeps its paint under the pointer as well.
     border-style: $shp-border-style;
     border-width: var(--bit-TagsInput-tag-border-width, #{$shp-border-width});
-    border-color: var(--bit-tgi-tag-brd, var(--bit-TagsInput-tag-border-color, var(--bit-tgi-tag-brd-dft)));
-    color: var(--bit-tgi-tag-clr, var(--bit-TagsInput-tag-color, var(--bit-tgi-tag-clr-dft)));
-    background-color: var(--bit-tgi-tag-bg, var(--bit-TagsInput-tag-background, var(--bit-tgi-tag-bg-dft)));
+    --bit-tgi-tag-sfg: initial;
+    --bit-tgi-tag-sbr: initial;
+    --bit-tgi-tag-sbg: initial;
+    border-color: var(--bit-tgi-tag-sbr, var(--bit-tgi-tag-brd, var(--bit-tgi-tag-brd-pub)));
+    color: var(--bit-tgi-tag-sfg, var(--bit-tgi-tag-clr, var(--bit-tgi-tag-clr-pub)));
+    background-color: var(--bit-tgi-tag-sbg, var(--bit-tgi-tag-bg, var(--bit-tgi-tag-bg-pub)));
     border-radius: var(--bit-TagsInput-tag-radius, #{$shp-radius-chip});
     font-size: var(--bit-tgi-tagfontsize, var(--bit-TagsInput-tag-font-size, #{$tg-fs-xs}));
     gap: var(--bit-TagsInput-tag-gap, #{spacing(0.375)});
@@ -227,8 +266,7 @@
     //It is drawn with the color of the text of the chip rather than with the accent, since on a filled
     //chip the accent is what the ring would be drawn on top of.
     &:focus-visible {
-        outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
+        @include focus-ring-inset(var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub)));
     }
 }
 
@@ -249,7 +287,7 @@
 //the chip the dragged one would land on: an inset outline rather than a border, so that nothing in the
 //row moves by a pixel while the drag is hovering over it.
 .bit-tgi-tag-dro {
-    outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+    outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub));
     outline-offset: calc(-1 * #{$shp-focus-ring-width});
 }
 
@@ -308,9 +346,12 @@
     //so unlike the tags it follows the casing the design system gives its controls.
     text-transform: $tg-ctrl-text-transform;
     border-width: var(--bit-TagsInput-tag-border-width, #{$shp-border-width});
-    border-color: var(--bit-tgi-tag-brd, var(--bit-TagsInput-tag-border-color, var(--bit-tgi-tag-brd-dft)));
-    color: var(--bit-tgi-tag-clr, var(--bit-TagsInput-tag-color, var(--bit-tgi-tag-clr-dft)));
-    background-color: var(--bit-tgi-tag-bg, var(--bit-TagsInput-tag-background, var(--bit-tgi-tag-bg-dft)));
+    --bit-tgi-tgl-sfg: initial;
+    --bit-tgi-tgl-sbr: initial;
+    --bit-tgi-tgl-sbg: initial;
+    border-color: var(--bit-tgi-tgl-sbr, var(--bit-tgi-tag-brd, var(--bit-tgi-tag-brd-pub)));
+    color: var(--bit-tgi-tgl-sfg, var(--bit-tgi-tag-clr, var(--bit-tgi-tag-clr-pub)));
+    background-color: var(--bit-tgi-tgl-sbg, var(--bit-tgi-tag-bg, var(--bit-tgi-tag-bg-pub)));
     border-radius: var(--bit-TagsInput-tag-radius, #{$shp-radius-chip});
     font-size: var(--bit-tgi-tagfontsize, var(--bit-TagsInput-tag-font-size, #{$tg-fs-xs}));
     padding: var(--bit-tgi-tagpadding, var(--bit-TagsInput-tag-padding, 0 calc(#{$siz-ctrl-pad-x-md} / 2)));
@@ -319,15 +360,14 @@
 
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-tgi-tag-clr-hover, var(--bit-TagsInput-toggle-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
-            border-color: var(--bit-tgi-tag-brd-hover, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
-            background-color: var(--bit-tgi-tag-bg-hover, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+            --bit-tgi-tgl-sfg: var(--bit-tgi-tag-clr-hover, var(--bit-tgi-tgl-clr-hover-pub));
+            --bit-tgi-tgl-sbr: var(--bit-tgi-tag-brd-hover, var(--bit-tgi-tgl-brd-hover-pub));
+            --bit-tgi-tgl-sbg: var(--bit-tgi-tag-bg-hover, var(--bit-tgi-tgl-bg-hover-pub));
         }
     }
 
     &:focus-visible {
-        outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
+        @include focus-ring-inset(var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub)));
     }
 }
 
@@ -368,10 +408,10 @@
         }
     }
 
-    //the same inset outline as the tag, and for the same reason: the field is already ringed.
+    //the same inset outline as the tag, and for the same reasons: the field is already ringed, and the chip
+    //clips its overflow, which would cut a ring drawn on the edge of the button off where it meets the chip's.
     &:focus-visible {
-        outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
-        outline-offset: 0;
+        @include focus-ring-inset(var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub)));
     }
 }
 
@@ -396,9 +436,9 @@
         }
     }
 
+    //the same inset outline as the dismiss button, for the same reason.
     &:focus-visible {
-        outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
-        outline-offset: 0;
+        @include focus-ring-inset(var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub)));
     }
 }
 
@@ -407,15 +447,14 @@
 //one does, so the eye finds it. A ring rather than a fill, since the little input has borrowed the colors
 //of the chip and repainting it now would be the tag changing into something else half way through.
 .bit-tgi-tag-edt {
-    outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
-    outline-offset: calc(-1 * #{$shp-focus-ring-width});
+    @include focus-ring-inset(var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub)));
 }
 
 //the chip that has been picked up and is waiting to be put down: outlined rather than faded, since unlike
 //the dragged chip there is no second copy of it under the pointer to tell the two apart. The dashes are
 //what say "this one is in the air" without borrowing the solid ring that means "this one has the focus".
 .bit-tgi-tag-lft {
-    outline: $shp-border-width-thick dashed var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+    outline: $shp-border-width-thick dashed var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub));
     outline-offset: calc(-1 * #{$shp-border-width-thick});
 }
 
@@ -432,7 +471,7 @@
 
         @media (hover: hover) {
             &:hover {
-                outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+                outline: $shp-focus-ring-width solid var(--bit-tgi-tag-ring, var(--bit-tgi-tag-ring-pub));
                 outline-offset: calc(-1 * #{$shp-focus-ring-width});
             }
         }
@@ -455,9 +494,9 @@
 
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-tgi-tag-clr-hover, var(--bit-TagsInput-tag-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
-            border-color: var(--bit-tgi-tag-brd-hover, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
-            background-color: var(--bit-tgi-tag-bg-hover, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+            --bit-tgi-tag-sfg: var(--bit-tgi-tag-clr-hover, var(--bit-tgi-tag-clr-hover-pub));
+            --bit-tgi-tag-sbr: var(--bit-tgi-tag-brd-hover, var(--bit-tgi-tag-brd-hover-pub));
+            --bit-tgi-tag-sbg: var(--bit-tgi-tag-bg-hover, var(--bit-tgi-tag-bg-hover-pub));
         }
     }
 }
@@ -478,7 +517,8 @@
 .bit-tgi-cbt {
     margin-inline-start: auto;
     padding-inline: spacing(0.25);
-    color: var(--bit-TagsInput-clear-color, #{$clr-fg-sec});
+    --bit-tgi-cbt-clr: initial;
+    color: var(--bit-tgi-cbt-clr, var(--bit-TagsInput-clear-color, #{$clr-fg-sec}));
     font-size: var(--bit-tgi-iconsize, var(--bit-TagsInput-icon-size, #{$siz-icon-md}));
     //a control of the field rather than a part of a chip, so it carries the 24 CSS pixel pointer target of
     //WCAG 2.2 (SC 2.5.8) on both axes at every size, whatever the glyph inside it measures.
@@ -488,7 +528,7 @@
 
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-TagsInput-clear-hover-color, #{$clr-fg-pri});
+            --bit-tgi-cbt-clr: var(--bit-TagsInput-clear-hover-color, #{$clr-fg-pri});
         }
     }
 
@@ -519,22 +559,24 @@
     //with no tag in it yet is exactly as tall as the same field once the first one is added.
     min-height: var(--bit-tgi-tagminheight, var(--bit-TagsInput-tag-min-height, #{$siz-chip-sm}));
 
-    &::placeholder {
-        color: var(--bit-TagsInput-placeholder-color, #{$clr-fg-ter});
-    }
+    @include input-placeholder(var(--bit-TagsInput-placeholder-color, #{$clr-fg-sec}));
 }
 
+
+//every variant of the field reads its own tier of the field variables (--bit-TagsInput-outline-*, -fill-*,
+//-text-*) ahead of the shared one, so a theme can set one look apart from the other two on :root while a shared
+//variable still re-skins all three at once.
 
 //Outline - the default: a full rule around the field, filled with the page surface.
 .bit-tgi-otl {
     .bit-tgi-cnt {
-        border-color: var(--bit-TagsInput-border-color, #{$clr-brd-pri});
-        background-color: var(--bit-TagsInput-background, #{$clr-bg-pri});
+        border-color: var(--bit-tgi-cnt-brd, var(--bit-TagsInput-outline-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri})));
+        background-color: var(--bit-tgi-cnt-bg, var(--bit-TagsInput-outline-background, var(--bit-TagsInput-background, #{$clr-bg-pri})));
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri-hover}));
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-outline-hover-border-color, var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-outline-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri-hover}))));
         }
     }
 }
@@ -542,42 +584,46 @@
 //Fill: the field is painted with the secondary surface and carries no rule of its own.
 .bit-tgi-fil {
     .bit-tgi-cnt {
-        border-color: var(--bit-TagsInput-border-color, transparent);
-        background-color: var(--bit-TagsInput-background, #{$clr-bg-sec});
+        border-color: var(--bit-tgi-cnt-brd, var(--bit-TagsInput-fill-border-color, var(--bit-TagsInput-border-color, transparent)));
+        background-color: var(--bit-tgi-cnt-bg, var(--bit-TagsInput-fill-background, var(--bit-TagsInput-background, #{$clr-bg-sec})));
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-border-color, transparent));
-            background-color: var(--bit-TagsInput-background, #{$clr-bg-sec-hover});
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-fill-hover-border-color, var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-fill-border-color, var(--bit-TagsInput-border-color, transparent))));
+            --bit-tgi-cnt-bg: var(--bit-TagsInput-fill-background, var(--bit-TagsInput-background, #{$clr-bg-sec-hover}));
         }
     }
 }
 
 //Text: only an underline is painted, for a tags field that should not outweigh the content around it.
 .bit-tgi-txt {
+    //the other three sides are taken away, which leaves the bottom one at the thickness the field reads in
+    //every variant - drawn here as the underline.
     .bit-tgi-cnt {
         border-radius: 0;
-        border-color: var(--bit-TagsInput-border-color, #{$clr-brd-pri});
-        background-color: var(--bit-TagsInput-background, transparent);
-        border-width: 0 0 var(--bit-TagsInput-border-width, #{$shp-border-width}) 0;
+        border-color: var(--bit-tgi-cnt-brd, var(--bit-TagsInput-text-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri})));
+        background-color: var(--bit-tgi-cnt-bg, var(--bit-TagsInput-text-background, var(--bit-TagsInput-background, transparent)));
+        border-top-width: 0;
+        border-right-width: 0;
+        border-left-width: 0;
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri-hover}));
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-text-hover-border-color, var(--bit-TagsInput-hover-border-color, var(--bit-TagsInput-text-border-color, var(--bit-TagsInput-border-color, #{$clr-brd-pri-hover}))));
         }
     }
 }
 
 .bit-tgi-nbd {
     .bit-tgi-cnt {
-        border-color: transparent;
+        border-color: var(--bit-tgi-cnt-brd, transparent);
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: transparent;
+            --bit-tgi-cnt-brd: transparent;
         }
     }
 }
@@ -649,6 +695,52 @@
     --bit-tgi-tag-bg-hover-dft: transparent;
 }
 
+//the public chip colors are resolved on the chip itself, so a single chip handed one through GetTagStyle still
+//takes it, and each tag variant reads its own tier of them (--bit-TagsInput-fill-tag-*, -outline-tag-*,
+//-text-tag-*, and the -toggle-* ones of the fold chip) ahead of the shared one, so a theme can set one look of
+//the chips apart from the other two. The chip rules above read nothing but these -pub values after the Color's.
+.bit-tgi-tgf .bit-tgi-tag,
+.bit-tgi-tgf .bit-tgi-tgl {
+    --bit-tgi-tag-clr-pub: var(--bit-TagsInput-fill-tag-color, var(--bit-TagsInput-tag-color, var(--bit-tgi-tag-clr-dft)));
+    --bit-tgi-tag-brd-pub: var(--bit-TagsInput-fill-tag-border-color, var(--bit-TagsInput-tag-border-color, var(--bit-tgi-tag-brd-dft)));
+    --bit-tgi-tag-bg-pub: var(--bit-TagsInput-fill-tag-background, var(--bit-TagsInput-tag-background, var(--bit-tgi-tag-bg-dft)));
+    --bit-tgi-tag-ring-pub: var(--bit-TagsInput-fill-tag-focus-color, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+    --bit-tgi-tag-clr-hover-pub: var(--bit-TagsInput-fill-tag-hover-color, var(--bit-TagsInput-tag-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tag-brd-hover-pub: var(--bit-TagsInput-fill-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tag-bg-hover-pub: var(--bit-TagsInput-fill-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+    --bit-tgi-tgl-clr-hover-pub: var(--bit-TagsInput-fill-toggle-hover-color, var(--bit-TagsInput-toggle-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tgl-brd-hover-pub: var(--bit-TagsInput-fill-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tgl-bg-hover-pub: var(--bit-TagsInput-fill-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+}
+
+.bit-tgi-tgo .bit-tgi-tag,
+.bit-tgi-tgo .bit-tgi-tgl {
+    --bit-tgi-tag-clr-pub: var(--bit-TagsInput-outline-tag-color, var(--bit-TagsInput-tag-color, var(--bit-tgi-tag-clr-dft)));
+    --bit-tgi-tag-brd-pub: var(--bit-TagsInput-outline-tag-border-color, var(--bit-TagsInput-tag-border-color, var(--bit-tgi-tag-brd-dft)));
+    --bit-tgi-tag-bg-pub: var(--bit-TagsInput-outline-tag-background, var(--bit-TagsInput-tag-background, var(--bit-tgi-tag-bg-dft)));
+    --bit-tgi-tag-ring-pub: var(--bit-TagsInput-outline-tag-focus-color, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+    --bit-tgi-tag-clr-hover-pub: var(--bit-TagsInput-outline-tag-hover-color, var(--bit-TagsInput-tag-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tag-brd-hover-pub: var(--bit-TagsInput-outline-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tag-bg-hover-pub: var(--bit-TagsInput-outline-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+    --bit-tgi-tgl-clr-hover-pub: var(--bit-TagsInput-outline-toggle-hover-color, var(--bit-TagsInput-toggle-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tgl-brd-hover-pub: var(--bit-TagsInput-outline-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tgl-bg-hover-pub: var(--bit-TagsInput-outline-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+}
+
+.bit-tgi-tgt .bit-tgi-tag,
+.bit-tgi-tgt .bit-tgi-tgl {
+    --bit-tgi-tag-clr-pub: var(--bit-TagsInput-text-tag-color, var(--bit-TagsInput-tag-color, var(--bit-tgi-tag-clr-dft)));
+    --bit-tgi-tag-brd-pub: var(--bit-TagsInput-text-tag-border-color, var(--bit-TagsInput-tag-border-color, var(--bit-tgi-tag-brd-dft)));
+    --bit-tgi-tag-bg-pub: var(--bit-TagsInput-text-tag-background, var(--bit-TagsInput-tag-background, var(--bit-tgi-tag-bg-dft)));
+    --bit-tgi-tag-ring-pub: var(--bit-TagsInput-text-tag-focus-color, var(--bit-TagsInput-tag-focus-color, var(--bit-tgi-tag-ring-dft)));
+    --bit-tgi-tag-clr-hover-pub: var(--bit-TagsInput-text-tag-hover-color, var(--bit-TagsInput-tag-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tag-brd-hover-pub: var(--bit-TagsInput-text-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tag-bg-hover-pub: var(--bit-TagsInput-text-tag-hover-background, var(--bit-TagsInput-tag-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+    --bit-tgi-tgl-clr-hover-pub: var(--bit-TagsInput-text-toggle-hover-color, var(--bit-TagsInput-toggle-hover-color, var(--bit-tgi-tag-clr-hover-dft)));
+    --bit-tgi-tgl-brd-hover-pub: var(--bit-TagsInput-text-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-brd-hover-dft)));
+    --bit-tgi-tgl-bg-hover-pub: var(--bit-TagsInput-text-toggle-hover-background, var(--bit-TagsInput-toggle-hover-background, var(--bit-tgi-tag-bg-hover-dft)));
+}
+
 //a read-only field still takes the caret (the tags are read and copied out of it), but nothing in it can
 //be picked up or dropped, so the grab cursor of a draggable chip would be a promise it does not keep.
 .bit-tgi-rdl {
@@ -666,23 +758,25 @@
 }
 
 
-//the focus ring is declared after the variants on purpose: it is as specific as they are, so only the
-//source order keeps a focused field from being painted over by its variant colors. It follows the whole
-//field rather than the input alone, so that a tag reached with the arrow keys lights it up as well.
+//the focus ring is declared after the variants, and like their hover it sets the variable the variant paints
+//the rule of the field from rather than painting the rule itself. It follows the whole field rather than the
+//input alone, so that a tag reached with the arrow keys lights it up as well.
+//The focus colors are the same in every variant, so they are read here, in the rule all three share, and the
+//underline of the Text variant is drawn from the ring color this rule resolves (--bit-tgi-cnt-ring) rather than
+//reading the public one again. The rule of the focused field is this rule's in every variant too.
 .bit-tgi .bit-tgi-cnt:focus-within {
-    @include focus-ring(var(--bit-tgi-clr-focus, var(--bit-TagsInput-focus-color, #{$clr-pri-focus})));
+    @include focus-ring-own(var(--bit-tgi-clr-focus, var(--bit-TagsInput-focus-color)));
 
-    border-color: var(--bit-tgi-clr, var(--bit-TagsInput-focus-border-color, #{$clr-pri}));
+    --bit-tgi-cnt-ring: var(--bit-tgi-clr-focus, var(--bit-TagsInput-focus-color, #{$clr-pri-focus}));
+    --bit-tgi-cnt-brd: var(--bit-tgi-clr, var(--bit-TagsInput-focus-border-color, #{$clr-pri}));
 }
 
 .bit-tgi-txt .bit-tgi-cnt:focus-within {
-    @include focus-underline-ring(var(--bit-tgi-clr-focus, var(--bit-TagsInput-focus-color, #{$clr-pri-focus})));
-
-    border-color: var(--bit-tgi-clr, var(--bit-TagsInput-focus-border-color, #{$clr-pri}));
+    @include focus-underline-ring(var(--bit-tgi-cnt-ring));
 }
 
 .bit-tgi-nbd .bit-tgi-cnt:focus-within {
-    border-color: transparent;
+    --bit-tgi-cnt-brd: transparent;
 }
 
 .bit-tgi.bit-dis {
@@ -712,10 +806,7 @@
 
     .bit-tgi-inp {
         color: var(--bit-TagsInput-disabled-color, #{$clr-fg-dis});
-
-        &::placeholder {
-            color: var(--bit-TagsInput-disabled-color, #{$clr-fg-dis});
-        }
+        @include input-placeholder(var(--bit-TagsInput-disabled-color, #{$clr-fg-dis}));
     }
 }
 
@@ -727,24 +818,23 @@
     }
 
     .bit-tgi-cnt {
-        border-color: var(--bit-TagsInput-invalid-color, #{$clr-err});
+        border-color: var(--bit-tgi-cnt-brd, var(--bit-TagsInput-invalid-color, #{$clr-err}));
 
         &:focus-within {
             @include focus-ring(var(--bit-TagsInput-invalid-color, #{$clr-err-focus}));
 
-            border-color: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+            --bit-tgi-cnt-ring: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
         }
     }
 
     &.bit-tgi-txt .bit-tgi-cnt:focus-within {
-        @include focus-underline-ring(var(--bit-TagsInput-invalid-color, #{$clr-err-focus}));
-
-        border-color: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+        @include focus-underline-ring(var(--bit-tgi-cnt-ring));
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: var(--bit-TagsInput-invalid-color, #{$clr-err});
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-invalid-color, #{$clr-err});
         }
     }
 }
@@ -757,24 +847,23 @@
 //refused, whichever of the two turned it down.
 .bit-tgi-rjd {
     .bit-tgi-cnt {
-        border-color: var(--bit-TagsInput-invalid-color, #{$clr-err});
+        border-color: var(--bit-tgi-cnt-brd, var(--bit-TagsInput-invalid-color, #{$clr-err}));
 
         &:focus-within {
             @include focus-ring(var(--bit-TagsInput-invalid-color, #{$clr-err-focus}));
 
-            border-color: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+            --bit-tgi-cnt-ring: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
         }
     }
 
     &.bit-tgi-txt .bit-tgi-cnt:focus-within {
-        @include focus-underline-ring(var(--bit-TagsInput-invalid-color, #{$clr-err-focus}));
-
-        border-color: var(--bit-TagsInput-invalid-color, #{$clr-err-focus});
+        @include focus-underline-ring(var(--bit-tgi-cnt-ring));
     }
 
     @media (hover: hover) {
         &:hover:not(.bit-dis) .bit-tgi-cnt {
-            border-color: var(--bit-TagsInput-invalid-color, #{$clr-err});
+            --bit-tgi-cnt-brd: var(--bit-TagsInput-invalid-color, #{$clr-err});
         }
     }
 }
@@ -797,6 +886,51 @@
     .bit-tgi-tag,
     .bit-tgi-tgl {
         border: $shp-border-width $shp-border-style ButtonText;
+    }
+
+    //a Fill chip is the role color written in the role's on-color - LinkText under Canvas for the primary role,
+    //two system colors the mode keeps. But Chromium draws a Canvas backplate behind every line of text, the glyphs
+    //of the dismiss and reorder buttons included, so the chip would read Canvas on Canvas: a row of empty pills.
+    //A chip is a surface, so it takes the canvas pair, and the fold chip, a button, the native button pair; both
+    //read with the backplate and without it (Firefox draws none). The pointer states move the chip's variables to
+    //the role's hover fill under the on-color, the same pair again, so they are set back with the selectors of the
+    //rules they undo and the state is carried by the system Highlight on the rule instead.
+    .bit-tgi-tgf .bit-tgi-tag {
+        color: CanvasText;
+        background-color: Canvas;
+    }
+
+    .bit-tgi-tgf .bit-tgi-tgl {
+        color: ButtonText;
+        background-color: ButtonFace;
+    }
+
+    .bit-tgi-tag-clk:hover {
+        --bit-tgi-tag-sfg: initial;
+        --bit-tgi-tag-sbr: initial;
+        --bit-tgi-tag-sbg: initial;
+        border-color: Highlight;
+    }
+
+    .bit-tgi-tgl:hover {
+        --bit-tgi-tgl-sfg: initial;
+        --bit-tgi-tgl-sbr: initial;
+        --bit-tgi-tgl-sbg: initial;
+        border-color: Highlight;
+    }
+
+    //a background role is the page's own color, Canvas here, which an Outline or Text chip reads its text from,
+    //invisible over the field it sits in, so it takes the system text instead.
+    @each $role in $bit-background-color-roles {
+        .bit-tgi-tgo.bit-tgi-#{$role} .bit-tgi-tag,
+        .bit-tgi-tgt.bit-tgi-#{$role} .bit-tgi-tag {
+            color: CanvasText;
+        }
+
+        .bit-tgi-tgo.bit-tgi-#{$role} .bit-tgi-tgl,
+        .bit-tgi-tgt.bit-tgi-#{$role} .bit-tgi-tgl {
+            color: ButtonText;
+        }
     }
 
     //the inset ring a chip is focused with, and the one marking the chip a drag would land on, are

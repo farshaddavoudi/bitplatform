@@ -14,13 +14,13 @@
 
 /*
  * Public CSS variables, read off the element and never declared here, so a value set on :root re-skins every
- * circular time picker and one set on the Style of an instance (or through Styles.Root) re-skins that one
- * alone. A non-standalone callout is rendered beside the root and relocated to the body while it is open -
- * that is what keeps it clear of the clipping and stacking contexts of the page - and Callouts.ts carries
- * what the root and its ancestors declare into it, so a variable set on an ancestor or through its class, in
- * Style or in Styles.Root reaches the dial like any inherited value; Styles.Callout sets one for the dial
- * alone. A standalone dial is never relocated, so it gets no such chain; it still inherits what its ancestors
- * declare, and the public declarations of Style and Styles.Root are copied onto it by the component:
+ * circular time picker and one set on the Style of an instance (or through Styles.Root) re-skins that one and the
+ * circular time pickers nested in it. A non-standalone callout is rendered beside the root and relocated to the body
+ * while it is open - that is what keeps it clear of the clipping and stacking contexts of the page - and Callouts.ts
+ * carries what the root and its ancestors declare into it, so a variable set on an ancestor or through its class, in
+ * Style or in Styles.Root reaches the dial like any inherited value; Styles.Callout sets one for the dial alone. A
+ * standalone dial is never relocated, so it gets no such chain; it still inherits what its ancestors declare, and the
+ * public declarations of Style and Styles.Root are copied onto it by the component:
  *   --bit-CircularTimePicker-color                        accent of the picker: the toolbar, the hand,
  *                                                         the pin, the selected number and the actions
  *                                                                                  (default: $clr-pri)
@@ -33,6 +33,7 @@
  *   --bit-CircularTimePicker-label-font-size              label text size           (default: $tg-fs-sm)
  *   --bit-CircularTimePicker-input-background             field background          (default: $clr-bg-pri)
  *   --bit-CircularTimePicker-input-color                  field foreground          (default: $clr-fg-pri)
+ *   --bit-CircularTimePicker-placeholder-color            field placeholder         (default: $clr-fg-sec)
  *   --bit-CircularTimePicker-input-font-size              field text size           (default: $tg-fs-sm)
  *   --bit-CircularTimePicker-input-height                 field height              (default: $siz-ctrl-md)
  *   --bit-CircularTimePicker-input-padding                field padding             (default: 0 spacing(1))
@@ -128,6 +129,9 @@
     --bit-ctp-tlb-minwidth: #{spacing(32.5)};
 }
 
+$ctp-private-properties: rl-clr, rl-text, rl-focus, inp-h, inp-fs, lbl-fs, clk-size, num-size, txt-fontsize,
+                         apb-fontsize, apk-fontsize, num-fontsize, thb-size, thb-size-min;
+
 .bit-ctp,
 .bit-ctp-cal {
     // What the Color and Size classes publish starts out unset on the root and on the callout alike - the
@@ -136,20 +140,9 @@
     // weight, still win on the element that carries them. Left unset, each sends the var() reading it on to
     // the public variable and then to the default, which is what lets an explicit parameter outrank the
     // variable while an unset one leaves the variable in charge.
-    --bit-ctp-rl-clr: initial;
-    --bit-ctp-rl-text: initial;
-    --bit-ctp-rl-focus: initial;
-    --bit-ctp-inp-h: initial;
-    --bit-ctp-inp-fs: initial;
-    --bit-ctp-lbl-fs: initial;
-    --bit-ctp-clk-size: initial;
-    --bit-ctp-num-size: initial;
-    --bit-ctp-txt-fontsize: initial;
-    --bit-ctp-apb-fontsize: initial;
-    --bit-ctp-apk-fontsize: initial;
-    --bit-ctp-num-fontsize: initial;
-    --bit-ctp-thb-size: initial;
-    --bit-ctp-thb-size-min: initial;
+    @each $name in $ctp-private-properties {
+        --bit-ctp-#{$name}: initial;
+    }
 
     @include ctp-size-medium;
 
@@ -178,7 +171,7 @@
     // public variables, then the primary role an unset Color stands for.
     --bit-ctp-clr: var(--bit-ctp-rl-clr, var(--bit-CircularTimePicker-color, #{$clr-pri}));
     --bit-ctp-clr-text: var(--bit-ctp-rl-text, var(--bit-CircularTimePicker-text-color, #{$clr-pri-text}));
-    --bit-ctp-clr-focus: var(--bit-ctp-rl-focus, var(--bit-CircularTimePicker-focus-color, #{$clr-pri-focus}));
+    --bit-ctp-clr-focus: var(--bit-ctp-rl-focus, var(--bit-CircularTimePicker-focus-color));
 
     // The hand, the pin and the ring of the thumb are one object drawn in three pieces, so they follow the
     // accent together unless the hand is given a color of its own - which an explicit Color still wins over.
@@ -225,6 +218,7 @@
                 cursor: default;
                 color: var(--bit-ctp-clr-dis);
                 background: none var(--bit-ctp-bg-dis);
+                @include input-placeholder(var(--bit-ctp-clr-dis));
             }
         }
     }
@@ -372,6 +366,7 @@
     font-family: $tg-font-family;
     font-size: var(--bit-ctp-inp-fs, var(--bit-CircularTimePicker-input-font-size, #{$tg-fs-sm}));
     color: var(--bit-CircularTimePicker-input-color, #{$clr-fg-pri});
+    @include input-placeholder(var(--bit-CircularTimePicker-placeholder-color, #{$clr-fg-sec}));
 }
 
 .bit-ctp-ein {
@@ -397,7 +392,7 @@
     }
 
     &:not(.bit-ctp-und) .bit-ctp-icn {
-        @include focus-ring(var(--bit-ctp-clr-focus, #{$clr-pri-focus}));
+        @include focus-ring-own(var(--bit-ctp-clr-focus));
 
         border-color: var(--bit-ctp-clr-foc-brd, #{$clr-pri});
     }
@@ -536,12 +531,15 @@
     vertical-align: middle;
     justify-content: center;
     -webkit-appearance: none;
-    background-color: transparent;
+    --bit-ctp-txb-bg: initial;
+    background-color: var(--bit-ctp-txb-bg, transparent);
     font-size: var(--bit-ctp-txt-fontsize, var(--bit-CircularTimePicker-time-font-size, calc(#{$tg-fs-4xl} * 1.375)));
 
     // The toolbar carries the on-color of the accent it is painted with, so its buttons inherit it instead
-    // of falling back to the page foreground on top of a colored surface.
-    color: inherit;
+    // of falling back to the page foreground on top of a colored surface - which is what the read below comes
+    // to while no hover has set the variable: a var() with nothing behind it is unset, and color inherits.
+    --bit-ctp-txb-clr: initial;
+    color: var(--bit-ctp-txb-clr);
 
     &:disabled {
         cursor: default;
@@ -566,7 +564,7 @@
  * still ask for one through the variable.
  */
 .bit-ctp-ina {
-    color: var(--bit-CircularTimePicker-inactive-color, currentcolor);
+    color: var(--bit-ctp-txb-clr, var(--bit-CircularTimePicker-inactive-color, currentcolor));
 }
 
 .bit-ctp-tlb {
@@ -791,6 +789,9 @@ span.bit-ctp-txt {
     transition-duration: $mot-duration-short;
     transition-property: color, background-color;
     color: var(--bit-CircularTimePicker-number-color, #{$clr-fg-pri});
+    // Transparent until the hover below sets it: a var() with nothing behind it is unset.
+    --bit-ctp-num-sbg: initial;
+    background-color: var(--bit-ctp-num-sbg);
 }
 
 .bit-ctp-inn {
@@ -820,7 +821,7 @@ span.bit-ctp-txt {
     border-radius: 50%;
 
     &:focus-visible {
-        @include focus-ring(var(--bit-ctp-clr-focus, #{$clr-pri-focus}));
+        @include focus-ring-own(var(--bit-ctp-clr-focus));
     }
 }
 
@@ -836,24 +837,29 @@ span.bit-ctp-txt {
     cursor: pointer;
     font-weight: $tg-fw-semibold;
     padding: spacing(0.75) spacing(1.5);
-    background-color: transparent;
+    --bit-ctp-abn-bg: initial;
+    background-color: var(--bit-ctp-abn-bg, transparent);
     font-family: $tg-font-family;
     font-size: var(--bit-CircularTimePicker-action-font-size, #{$tg-fs-sm});
     border-radius: var(--bit-CircularTimePicker-border-radius, #{$shp-radius-control});
     color: var(--bit-ctp-rl-clr, var(--bit-CircularTimePicker-action-color, var(--bit-ctp-clr)));
 
+    // The states change the variable the button is painted from rather than its background, so only the rule
+    // at rest paints it: a button the app paints through Classes keeps that paint under the pointer and while
+    // it is pressed, instead of losing it to a state that outranks the app's class. The same holds for every
+    // hover and press of the callout below.
     @media (hover: hover) {
         &:hover:not(:disabled) {
-            background-color: $clr-bg-pri-hover;
+            --bit-ctp-abn-bg: #{$clr-bg-pri-hover};
         }
     }
 
     &:active:not(:disabled) {
-        background-color: $clr-bg-pri-hover;
+        --bit-ctp-abn-bg: #{$clr-bg-pri-hover};
     }
 
     &:focus-visible {
-        @include focus-ring(var(--bit-ctp-clr-focus, #{$clr-pri-focus}));
+        @include focus-ring-own(var(--bit-ctp-clr-focus));
     }
 
     &:disabled {
@@ -875,22 +881,23 @@ span.bit-ctp-txt {
     width: spacing(3.75);
     max-width: spacing(5);
     font-size: $tg-fs-xs;
-    background-color: transparent;
+    --bit-ctp-cbn-bg: initial;
+    background-color: var(--bit-ctp-cbn-bg, transparent);
     color: var(--bit-CircularTimePicker-close-button-color, #{$clr-fg-pri});
     border-radius: var(--bit-CircularTimePicker-border-radius, #{$shp-radius-control});
 
     @media (hover: hover) {
         &:hover {
-            background-color: $clr-bg-pri-hover;
+            --bit-ctp-cbn-bg: #{$clr-bg-pri-hover};
         }
     }
 
     &:active {
-        background-color: $clr-bg-pri-hover;
+        --bit-ctp-cbn-bg: #{$clr-bg-pri-hover};
     }
 
     &:focus-visible {
-        @include focus-ring(var(--bit-ctp-clr-focus, #{$clr-pri-focus}));
+        @include focus-ring-own(var(--bit-ctp-clr-focus));
     }
 }
 
@@ -917,12 +924,12 @@ span.bit-ctp-txt {
 
         @media (hover: hover) {
             &:hover {
-                background-color: translucent(currentcolor, 16%);
+                --bit-ctp-cbn-bg: #{translucent(currentcolor, 16%)};
             }
         }
 
         &:active {
-            background-color: translucent(currentcolor, 24%);
+            --bit-ctp-cbn-bg: #{translucent(currentcolor, 24%)};
         }
 
         &:focus-visible {
@@ -1000,7 +1007,7 @@ span.bit-ctp-txt {
 @media (hover: hover) {
     .bit-ctp-cal:not(.bit-dis):not(.bit-ctp-rdl) {
         .bit-ctp-num:not(.bit-ctp-dis):not(.bit-ctp-sel):hover {
-            background-color: var(--bit-CircularTimePicker-number-hover-background, #{$clr-bg-pri-hover});
+            --bit-ctp-num-sbg: var(--bit-CircularTimePicker-number-hover-background, #{$clr-bg-pri-hover});
         }
 
         // Scoped to the toolbar: its buttons sit on the accent, so a light background would be a patch of
@@ -1013,12 +1020,12 @@ span.bit-ctp-txt {
         // :not(:disabled) is no help there - a span is never disabled.
         .bit-ctp-tlb button.bit-ctp-txt:not(:disabled):hover,
         .bit-ctp-tlb .bit-ctp-apb:not(:disabled):hover {
-            color: var(--bit-ctp-rl-text, var(--bit-CircularTimePicker-toolbar-color, var(--bit-ctp-clr-text)));
-            background-color: translucent(currentcolor, 16%);
+            --bit-ctp-txb-clr: var(--bit-ctp-rl-text, var(--bit-CircularTimePicker-toolbar-color, var(--bit-ctp-clr-text)));
+            --bit-ctp-txb-bg: #{translucent(currentcolor, 16%)};
         }
 
         .bit-ctp-apk .bit-ctp-apb:not(:disabled):not(.bit-ctp-aps):hover {
-            background-color: $clr-bg-pri-hover;
+            --bit-ctp-txb-bg: #{$clr-bg-pri-hover};
         }
     }
 }
@@ -1140,5 +1147,33 @@ span.bit-ctp-txt {
     // rule under the active one, exactly as it is outside High Contrast.
     .bit-ctp-ina {
         color: CanvasText;
+    }
+
+    // The toolbar is repainted CanvasText on Canvas above, but three of its parts read the role's on-color off it
+    // directly - Canvas for the primary role - which would sit on the Canvas backplate Chromium draws behind every
+    // line of text: a hovered part of the time, the close button laid over its corner, and the focus ring of a part
+    // the dial is not on. The hover is set back with the selectors of the rule that sets it, so the part keeps the
+    // bar's text, and the other two take the system button text and focus colors.
+    .bit-ctp-cal:not(.bit-dis):not(.bit-ctp-rdl) {
+        .bit-ctp-tlb button.bit-ctp-txt:not(:disabled):hover,
+        .bit-ctp-tlb .bit-ctp-apb:not(:disabled):hover {
+            --bit-ctp-txb-clr: initial;
+        }
+    }
+
+    .bit-ctp-wcb .bit-ctp-cbn {
+        color: ButtonText;
+    }
+
+    .bit-ctp-tlb .bit-ctp-ina:focus-visible {
+        outline-color: Highlight;
+    }
+
+    // A background role is the page's own color, Canvas here, which the action buttons read their label from,
+    // invisible over the callout they sit on, so they take the system button text instead.
+    @each $role in $bit-background-color-roles {
+        .bit-ctp-#{$role} .bit-ctp-abn:not(:disabled) {
+            color: ButtonText;
+        }
     }
 }

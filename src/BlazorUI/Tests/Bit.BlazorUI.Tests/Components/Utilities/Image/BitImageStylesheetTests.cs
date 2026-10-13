@@ -74,12 +74,14 @@ public partial class BitImageStylesheetTests
     public void BitImageShouldTintOnlyAClickableImage(string variable)
     {
         // The tint is the feedback of a control, so it is laid over the frame of an image with a click handler and
-        // nowhere else - read once, by a rule of the clickable frame's own pseudo-element.
+        // nowhere else - read once, by a rule of the clickable frame's own pseudo-element. The state hands it to the
+        // variable the tint is painted from at rest, so a tint the app paints itself is not outranked by the state.
         var rules = SourceFiles.StripScssComments(ReadStylesheet());
 
         Assert.AreEqual(1, Regex.Matches(rules, $@"var\({Regex.Escape(variable)}[,)]").Count, $"{variable} is read more than once.");
-        Assert.IsTrue(Regex.IsMatch(rules, $@"(\.bit-img-clk|&)[^{{}}]*::after \{{\s*background-color: var\({Regex.Escape(variable)}, "),
+        Assert.IsTrue(Regex.IsMatch(rules, $@"(\.bit-img-clk|&)[^{{}}]*::after \{{\s*--bit-img-tnt-bg: var\({Regex.Escape(variable)}, "),
                       $"{variable} is not read by the clickable frame's tint.");
+        StringAssert.Contains(rules, "background-color: var(--bit-img-tnt-bg, transparent);");
     }
 
     [TestMethod]
@@ -97,9 +99,10 @@ public partial class BitImageStylesheetTests
     [TestMethod]
     public void BitImageShouldLeaveReducedMotionToTheMotionTokens()
     {
-        // The fade reads the theme's motion token like every other component, so the library-wide mechanism -
-        // the tokens collapsing under the preference, .bit-fam and an app's :root restoring them - is the only
-        // one: the image keeps no reduced motion query, and no ForceAnimation restore, of its own.
+        // The fade reads the theme's motion token like every other component, and a pace set through the public
+        // variable is scaled by the shared motion factor, so the library-wide mechanism - the tokens collapsing
+        // under the preference, .bit-fam and an app's :root restoring them - is the only one: the image keeps no
+        // reduced motion query, and no ForceAnimation restore, of its own.
         var stylesheet = ReadStylesheet();
 
         Assert.AreEqual(2, Regex.Matches(stylesheet, Regex.Escape(FadeDuration)).Count);
@@ -201,7 +204,7 @@ public partial class BitImageStylesheetTests
         StringAssert.Contains(stylesheet, "@supports selector(:has(a)) {\n        .bit-img-img:focus-visible {\n            outline: none;");
     }
 
-    private const string FadeDuration = "animation-duration: var(--bit-Image-fade-duration, #{$mot-duration-long});";
+    private const string FadeDuration = "animation-duration: mot-scaled-duration(var(--bit-Image-fade-duration, #{$mot-duration-long}));";
 
     private static string[] DocumentedVariables(string stylesheet)
     {

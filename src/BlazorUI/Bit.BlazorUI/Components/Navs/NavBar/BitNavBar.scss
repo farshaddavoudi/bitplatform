@@ -1,7 +1,7 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// navbar and one set on the Style of an instance re-skins that one alone:
+// navbar and one set on the Style of an instance re-skins that one and the navbars nested in it:
 //   --bit-NavBar-background              fill of the bar                                   (default: transparent)
 //   --bit-NavBar-border-radius           corners of the bar (a floating tab bar)           (default: 0)
 //   --bit-NavBar-shadow                  shadow of the bar                                 (default: none)
@@ -59,6 +59,9 @@
     }
 }
 
+$nbr-private-properties: clr, clr-ind, clr-dis, clr-fcs, clr-acc-hover, clr-acc-active, clr-acc-text, fil-hover,
+                         fil-active, fil-text, sz-ico, sz-txt, sz-gap, sz-pad, sz-sec-pad, sz-row-pad, sz-min;
+
 .bit-nbr {
     // The bar itself is a flex line, so the header and the footer sit beside (or above and below) the
     // items instead of on their own row, and the list of items takes whatever room is left over.
@@ -92,23 +95,9 @@
     // carries them. Left unset, each sends the var() reading it on to the public variable and then to the
     // default, which is what lets an explicit parameter outrank the variable while an unset one leaves the
     // variable in charge.
-    --bit-nbr-clr: initial;
-    --bit-nbr-clr-ind: initial;
-    --bit-nbr-clr-dis: initial;
-    --bit-nbr-clr-fcs: initial;
-    --bit-nbr-clr-acc-hover: initial;
-    --bit-nbr-clr-acc-active: initial;
-    --bit-nbr-clr-acc-text: initial;
-    --bit-nbr-fil-hover: initial;
-    --bit-nbr-fil-active: initial;
-    --bit-nbr-fil-text: initial;
-    --bit-nbr-sz-ico: initial;
-    --bit-nbr-sz-txt: initial;
-    --bit-nbr-sz-gap: initial;
-    --bit-nbr-sz-pad: initial;
-    --bit-nbr-sz-sec-pad: initial;
-    --bit-nbr-sz-row-pad: initial;
-    --bit-nbr-sz-min: initial;
+    @each $name in $nbr-private-properties {
+        --bit-nbr-#{$name}: initial;
+    }
 
     // The metrics every part reads: the step an explicit Size publishes, then the public variable, then the
     // medium navbar an unset Size stands for. The padding variable sets both the stacked padding and the wider
@@ -217,7 +206,7 @@
     }
 
     &:focus-visible {
-        @include focus-ring(var(--bit-nbr-clr-fcs, var(--bit-NavBar-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-nbr-clr-fcs, var(--bit-NavBar-focus-color)));
     }
 }
 
@@ -436,12 +425,7 @@
     // the item, so all that would be left of it is the two sides between the items. The ring is drawn inside
     // the item instead: along its edge, with the gap that sets it off the item's fill inside it.
     .bit-nbr-itm:focus-visible {
-        box-shadow: inset 0 0 0 $shp-focus-ring-width var(--bit-nbr-clr-fcs, var(--bit-NavBar-focus-color, #{$clr-pri-focus})),
-                    inset 0 0 0 calc(#{$shp-focus-ring-width} + #{$shp-focus-ring-offset}) #{$clr-bg-pri};
-
-        @media (forced-colors: active) {
-            outline-offset: calc(-1 * #{$shp-focus-ring-width});
-        }
+        @include focus-ring-inset(var(--bit-nbr-clr-fcs, var(--bit-NavBar-focus-color, #{$clr-pri-focus})), $band: true);
     }
 }
 
@@ -695,7 +679,11 @@
         inset-inline: auto 0;
     }
 
+    // The pill is drawn in the selection pair, and HighlightText is as dark or as light as Canvas in a contrast
+    // theme - left to the forced palette, Chromium would draw the icon over the Canvas backplate it puts behind
+    // every glyph, an empty pill. It is kept out of the palette, which holds the disabled pill below as well.
     .bit-nbr-pil .bit-nbr-sel .bit-nbr-icc {
+        forced-color-adjust: none;
         color: HighlightText;
         background-color: Highlight;
     }
@@ -714,9 +702,46 @@
         background-color: GrayText;
     }
 
+    // The badge's count is Canvas on a CanvasText fill, which the backplate would empty the same way.
     .bit-nbr-bdg {
+        forced-color-adjust: none;
         color: Canvas;
         background-color: CanvasText;
+    }
+
+    // The hover and the press paint the item - or the pill - with the fill of the role under its on-color, a
+    // LinkText fill under a Canvas label for the primary role of a Filled bar, which the backplate empties; an
+    // unfilled bar paints the label in the role, the page's own Canvas for a background role. Both are restated
+    // as the link the item is, LinkText on nothing, with the selectors of the rules they undo.
+    @media (hover: hover) {
+        .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):hover,
+        .bit-nbr-pil .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):hover .bit-nbr-icc {
+            color: LinkText;
+            background-color: transparent;
+        }
+
+        .bit-nbr-pil .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):hover:has(.bit-nbr-icc) {
+            color: LinkText;
+        }
+    }
+
+    .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):active,
+    .bit-nbr-pil .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):active .bit-nbr-icc {
+        color: LinkText;
+        background-color: transparent;
+    }
+
+    .bit-nbr-pil .bit-nbr-itm:not(.bit-nbr-sel):not(.bit-nbr-dis):active:has(.bit-nbr-icc) {
+        color: LinkText;
+    }
+
+    // A background role is the page's own color, Canvas here, which the label beside a selected pill is drawn in -
+    // invisible in every engine. It is the system text color instead. The rule carries the root class beside the
+    // role's, so it outweighs the role classes, which follow this block.
+    @each $role in $bit-background-color-roles {
+        .bit-nbr.bit-nbr-#{$role} {
+            --bit-nbr-clr: CanvasText;
+        }
     }
 }
 

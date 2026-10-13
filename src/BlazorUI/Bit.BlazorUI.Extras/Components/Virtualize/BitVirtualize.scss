@@ -1,7 +1,8 @@
 ﻿@import '../../../Bit.BlazorUI/Styles/functions.scss';
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root (or on an
-// ancestor) re-tunes every list under it and one set on the Style of an instance that one alone:
+// ancestor) re-tunes every list under it and one set on the Style of an instance that one and the lists nested
+// in it:
 //   --bit-Virtualize-focus-color          focus indicator of the list and of its items  (default: $clr-pri-focus)
 //   --bit-Virtualize-sticky-background    background of the pinned sticky item         (default: $clr-bg-pri)
 //   --bit-Virtualize-sticky-shadow        shadow under the pinned sticky item           (default: none)
@@ -13,13 +14,7 @@
 // is flush with its neighbours. An outline, unlike an inset box-shadow, is painted above the content, so an item
 // whose root fills it with a background cannot hide it.
 @mixin vir-ring {
-    outline: #{$shp-focus-ring-width} solid var(--bit-Virtualize-focus-color, #{$clr-pri-focus});
-    outline-offset: calc(-1 * #{$shp-focus-ring-width});
-
-    // The forced palette turns the ring into the system's own focus color.
-    @media (forced-colors: active) {
-        outline: #{$shp-focus-ring-width} solid Highlight;
-    }
+    @include focus-ring-inset(var(--bit-Virtualize-focus-color, #{$clr-pri-focus}));
 }
 
 @mixin vir-focus-ring {

@@ -5,6 +5,107 @@ Breaking changes to the public API of the bit BlazorUI packages (`Bit.BlazorUI`,
 
 ## vNext (after 10.6.2)
 
+### A modal container of an app's own reads its modals through `ModalReferences` ([#13558](https://github.com/bitfoundation/bitplatform/issues/13558))
+
+The list of modals `BitModalContainerBase<TReference, TParameters>` kept is no longer a `protected` field:
+`_modalRefs` is now the read-only `ModalReferences`, since a container that changed the list itself left the
+container's own record of each modal (its exit animation, its merged parameters) out of step with it.
+**A container that derived from the base and read `_modalRefs`** reads `ModalReferences` instead. One that
+rendered its modals by cascading the reference and the parameters itself renders them through
+`RenderModals()` - or `RenderModals(template)` to put markup of its own around each modal - which is the only
+way a closed modal plays its exit animation; a container for a `BitModalService` is simplest derived from
+`BitModalContainer`, which already names the service, merges the parameters and honours `CloseOnNavigation`:
+
+```razor
+@inherits BitModalContainer
+
+@(RenderModals(item => @<div class="modal-frame">@item.Modal</div>))
+```
+
+The modals a container renders also render only when something of their own changes - their parameters
+(`Update`, `Refresh`, the container's `ModalParameters`) or their closing - rather than whenever any modal is
+shown or closed. Content that reads its `BitModalReference` is still handed it again on each of those changes,
+so it follows the reference's `Parameters` and `IsClosed`; content that relied on being rendered again because
+another modal came or went calls `StateHasChanged` itself.
+
+### A disabled native control now carries `aria-disabled="true"` beside `disabled` ([#13549](https://github.com/bitfoundation/bitplatform/issues/13549))
+
+Components marked a disabled control in different ways: some wrote the native `disabled` attribute alone, some
+`aria-disabled="true"` alone, some both - the date picker's calendar buttons wrote both while the identical ones
+of the date range picker wrote `disabled` only - so no one selector or test locator found a disabled control. Every
+native control a component renders disabled (`button`, `input`, `select`, `textarea`, `option`, ...) now writes
+both, so `:disabled` and `[aria-disabled="true"]` each find it, and a control kept focusable while unavailable (a
+loading button, `AllowDisabledFocus`, a link) goes on writing `aria-disabled="true"` alone. The root of every
+disabled component carries the `bit-dis` class, as it already did, which is the hook for a disabled component as a
+whole.
+
+What changes in the markup: about three hundred controls across the inputs, pickers, navs, lists, surfaces and the
+`Bit.BlazorUI.Extras` components (`BitDataGrid`, `BitRichTextEditor`, `BitPdfViewer`, `BitMarkdownEditor`,
+`BitPhoneInput`, `BitFullCalendar`, ...) and the paginator of the `Bit.BlazorUI.Legacy` data grid gain
+`aria-disabled="true"` while disabled; and a few that wrote `aria-disabled` for another state only (loading,
+read-only, nothing to act on) now also write it while disabled - the Ok button of `BitDialog`, the batch actions of
+`BitFileUpload`, the time buttons of `BitCalendar`, the eye dropper and presets of `BitColorPicker`, the button of
+`BitDropMenu` and of `BitTag`. **A rule or locator meant for the controls
+that are only `aria-disabled`** - the focusable ones - now matches the natively disabled ones too: add
+`:not(:disabled)` to it. One that expected no `aria-disabled` on a disabled control checks `disabled` instead.
+
+A boolean written into an input's `InputHtmlAttributes` for an attribute the input also writes itself
+(`aria-disabled`, `aria-invalid`, `aria-label`, `spellcheck`, ...) is now rendered the way Blazor renders any
+splatted boolean - with no value while it is `true`, left out while it is `false` - rather than as the text `True`
+or `False`. Write the string (`["aria-disabled"] = "true"`) for a value of its own.
+
+### A disabled component no longer runs the activation handlers written on it ([#13547](https://github.com/bitfoundation/bitplatform/issues/13547))
+
+An HTML event handler written straight on a component (`<BitToggle Disabled="true" @onclick="...">`) lands on
+its root element, and it used to run while the component was disabled: a screen reader's click ignores the
+`pointer-events: none` of the disabled state, a click or key of an enabled control inside the component bubbles
+up to its root, and several components do not turn the pointer off at all. A disabled component now drops the
+handlers of the events an element is activated through - `onclick`, `ondblclick`, `onauxclick`,
+`oncontextmenu`, `onmousedown` / `onmouseup`, `onpointerdown` / `onpointerup`, `ontouchstart` / `ontouchend`,
+`onkeydown` / `onkeyup` / `onkeypress` - the way `BitElement` already did and a disabled form control does.
+Hover and focus handlers are kept, and every handler is back as soon as the component is enabled again.
+
+This applies to the buttons (`BitActionButton`, `BitButton`, `BitButtonGroup`, `BitMenuButton`,
+`BitToggleButton`), every input, `BitTimeline`, the navs (`BitBreadcrumb`, `BitDropMenu`, `BitNav`,
+`BitNavBar`, `BitPagination`, and `BitPivotItem` - disabled on its own or by its `BitPivot`), `BitPersona`,
+`BitTag`, `BitCard`, `BitIcon`, `BitImage`, `BitLink`, and in `Bit.BlazorUI.Extras` to `BitFlag`,
+`BitPhoneInput`, `BitThemeSwitcher`, `BitAccentColorSwitcher`, `BitRichTextEditor`, `BitMarkdownEditor`,
+`BitDataGrid`, `BitChart` and `BitPdfViewer`. A component whose `Disabled` only switches one behaviour off
+while the content it hosts stays live keeps running them: `BitBadge`, `BitTooltip`, `BitCallout`,
+`BitAccordion` and `BitAccordionList` (their panels), `BitCarousel` and `BitSwiper` (their slides), `BitPivot`
+(the panel of its open tab), `BitMap` (its overlay), `BitMessageBox`, `BitNavPanel`, and the other panels,
+dialogs and layouts. **An app that relied on a handler of a disabled component running** - to explain why it is
+disabled, say - puts it on an element of its own around the component.
+
+`BitButtonGroup` also turns an item's click away for the group's own `Disabled`, not only for the item's
+`IsDisabled`: with `DisabledInteractive`, a disabled group used to still run `OnItemClick`, the item's
+`OnClick` and its toggle on a key press. The link items of a disabled group are out of the tab order.
+
+### An app's class keeps painting a part while it is hovered, pressed or focused ([#13542](https://github.com/bitfoundation/bitplatform/issues/13542))
+
+The hover, pressed and focus states of the components used to paint their parts' `color`, `background`,
+`border-color`, `fill` and `stroke` themselves, in rules more specific than the single class an app hands a
+part through `Class` or `Classes`. So a `Class="brand-btn"` with `.brand-btn { background: purple }` painted the
+button at rest and lost to the library's hover color as soon as the pointer was over it. Those states now
+change a private variable that the rule at rest paints from, so a part an app paints keeps that paint in
+every state it keeps it at rest. This applies to every component in `Bit.BlazorUI` and `Bit.BlazorUI.Extras`.
+
+Nothing changes for an app that restyles through the public `--bit-<Component>-*-hover-*` / `-active-*`
+variables, or one that does not paint a part through its own class. **An app that paints a part through its
+own class and relied on the library's hover, pressed or focus color showing over it now keeps its own color in
+those states.** To bring back state feedback, style the state in the app's own rule:
+
+```css
+.brand-btn { background: purple; }
+.brand-btn:hover { background: rebeccapurple; }
+```
+
+Disabled states, `forced-colors` mode, the browser's scrollbar parts and the Leaflet / OpenLayers controls
+of `BitMap` still paint directly, as before. One side effect in `forced-colors` mode: a part that is drawn
+in system colors at rest (today or the selected day of a calendar, a checked or toggled button, an active
+toolbar button) now keeps those colors under the pointer, where a library hover rule used to paint theme
+colors over them.
+
 ### Every anchor resolves a new tab's rel the same way ([#13475](https://github.com/bitfoundation/bitplatform/issues/13475))
 
 The components that render an anchor from a `Target` (`BitLink`, `BitTag`, `BitButton`, `BitActionButton`,
@@ -325,7 +426,10 @@ counterpart (as nullable), unless noted.
 - **BitVirtualize**: `BitVirtualizeScrollAlignment.Auto` -> `BitScrollAlignment.Nearest`.
 - **BitMarkdown**: `BitMarkdownColumnAlignment.None` -> `null`.
 - **BitChart**: `BitChartPosition.Chart` (reserved, never placed anything) is gone. Titles and legends
-  placed `Left` / `Right` are now physical and keep their side in an RTL chart (**behavior**).
+  placed `Left` / `Right` are now physical and keep their side in an RTL chart (**behavior**); the new
+  `Start` / `End` placements put them beside the plot on the reading start / end, which is what the old
+  `Left` / `Right` did, so migrate those as `Left` -> `Start` and `Right` -> `End` to keep a chart
+  following the reading direction ([#13714](https://github.com/bitfoundation/bitplatform/issues/13714)).
 - **BitTooltip** (**behavior**): the twelve corner values are now a side (`Placement`) plus an alignment
   along that side (`Alignment`). The new alignment lines the tooltip's edge up with the **same** edge of
   the anchor and lets it grow away from it, whereas the old corner values let the tooltip overhang the
@@ -362,7 +466,9 @@ counterpart (as nullable), unless noted.
   (and new `bit-dtg-left`) now mean physical alignment.
 - New classes, no removals: BitPanel `bit-pnl-left` / `bit-pnl-right`, BitCallout `bit-clo-lft` /
   `bit-clo-rgt`, BitDropMenu `bit-drm-lft` / `bit-drm-rgt`, BitSnackBar `bit-snb-tlf`, `-trg`, `-blf`,
-  `-brg`, `-cst`, `-cen`, `-clf`, `-crg`, `-ctr`, BitChart `bit-cht-ttl-l`.
+  `-brg`, `-cst`, `-cen`, `-clf`, `-crg`, `-ctr`, and BitChart's side classes of a title, subtitle or legend
+  beside the plot, `bit-cht-lft` / `bit-cht-rgt` / `bit-cht-sta` / `bit-cht-end` (the 11.0 previews' `bit-cht-ttl-l`
+  is gone again: `bit-cht-lft` says the same).
 
 #### Internal-but-public members
 
@@ -379,7 +485,7 @@ The Boilerplate template (`src/Templates/Boilerplate`) is outside the BlazorUI e
 | `Boilerplate.Client.Core/Components/Layout/AppConsentBanner.razor` | 12 | `Position="BitPanelPosition.Bottom"` -> `Placement="BitPlacement.Bottom"` |
 | `Boilerplate.Client.Core/Components/Layout/AppSnackBar.razor` | 7 | `BitSnackBarPosition.TopCenter` -> `BitPosition.TopCenter` |
 | `Boilerplate.Client.Core/Components/Pages/Categories/CategoriesPage.razor` | 58 | `BitDataGridColumnAlign.Center` -> `BitTextAlign.Center` |
-| `Boilerplate.Client.Core/Components/Pages/Dashboard/ProductsPercentageWidget.razor.cs` | 19 | `Position = BitChartPosition.Right` -> `Placement = BitPlacement.Right` |
+| `Boilerplate.Client.Core/Components/Pages/Dashboard/ProductsPercentageWidget.razor.cs` | 19 | `Position = BitChartPosition.Right` -> `Placement = BitPlacement.End` (keeps the pie legend on the reading end in Persian and Arabic) |
 | `Boilerplate.Client.Core/Components/Pages/Management/OperationsPage.razor` | 217 | `BitTagShape.Circular` -> `BitShape.Pill` |
 | `Boilerplate.Client.Core/Components/Pages/Products/ProductsPage.razor` | 60 | `BitDataGridColumnAlign.Right` -> `BitTextAlign.End` |
 | `Boilerplate.Client.Core/Components/Pages/Products/ProductsPage.razor` | 67 | `BitDataGridColumnAlign.Center` -> `BitTextAlign.Center` |

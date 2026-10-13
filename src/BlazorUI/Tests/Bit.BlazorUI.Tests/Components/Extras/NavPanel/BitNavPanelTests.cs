@@ -644,6 +644,176 @@ public class BitNavPanelTests : BunitTestContext
     }
 
     [TestMethod]
+    public void BitNavPanelShouldClaimTheEscapeThatClosesTheDrawer()
+    {
+        var isOpen = true;
+
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, Items);
+            parameters.Bind(p => p.IsOpen, isOpen, v => isOpen = v);
+        });
+
+        SetDrawerScreen(component, true);
+
+        component.WaitForAssertion(() => Assert.AreEqual("claim", component.Find(".bit-npn").GetAttribute("data-bit-esc")));
+
+        component.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        // A closed drawer has nothing left for the key to do, so it is left to whatever the panel sits in.
+        component.WaitForAssertion(() =>
+        {
+            Assert.IsFalse(isOpen);
+            Assert.IsNull(component.Find(".bit-npn").GetAttribute("data-bit-esc"));
+        });
+    }
+
+    [TestMethod]
+    public void BitNavPanelShouldNotClaimEscapeOnTheColumnOfAWideScreen()
+    {
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, Items);
+            parameters.Add(p => p.IsOpen, true);
+        });
+
+        SetDrawerScreen(component, false);
+
+        component.WaitForAssertion(() => Assert.IsNull(component.Find(".bit-npn").GetAttribute("data-bit-esc")));
+    }
+
+    [TestMethod]
+    public void BitNavPanelShouldClaimTheEscapeThatEmptiesTheSearch()
+    {
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, TreeItems());
+            parameters.Add(p => p.SearchDebounceTime, 0);
+            parameters.Add(p => p.IsOpen, true);
+        });
+
+        // The column closes on nothing, so the search is the only thing the key can act on there.
+        SetDrawerScreen(component, false);
+
+        component.WaitForAssertion(() => Assert.IsNull(component.Find(".bit-npn").GetAttribute("data-bit-esc")));
+
+        component.Find(".bit-srb-inp").Change("settings");
+
+        component.WaitForAssertion(() => Assert.AreEqual("claim", component.Find(".bit-npn").GetAttribute("data-bit-esc")));
+
+        component.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        component.WaitForAssertion(() =>
+        {
+            Assert.AreEqual(3, component.FindAll(".bit-nav-ict").Count);
+            Assert.IsNull(component.Find(".bit-npn").GetAttribute("data-bit-esc"));
+        });
+    }
+
+    [TestMethod]
+    public void BitNavPanelShouldLeaveTheEscapeTheSearchBoxClaimedAlone()
+    {
+        // The search box empties its own text on Escape and claims the press (data-bit-esc), which Blazor's dispatch
+        // still bubbles up to the panel's root. The browser tells the panel the press was claimed inside it
+        // (Utils.watchEscapeClaim), so the panel neither empties the search a second time nor closes the drawer.
+        var isOpen = true;
+
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, TreeItems());
+            parameters.Add(p => p.SearchDebounceTime, 0);
+            parameters.Bind(p => p.IsOpen, isOpen, v => isOpen = v);
+        });
+
+        SetDrawerScreen(component, true);
+
+        component.Find(".bit-srb-inp").Change("settings");
+        component.WaitForAssertion(() => Assert.AreEqual(1, component.FindAll(".bit-nav-ict").Count));
+
+        Assert.AreEqual(1, Context.JSInterop.Invocations["BitBlazorUI.Utils.watchEscapeClaim"].Count);
+
+        // The search box claimed the press, which is what the browser answers ahead of the keydown.
+        Assert.IsNotNull(component.Find(".bit-srb-inp").GetAttribute("data-bit-esc"));
+        component.InvokeAsync(() => component.Instance._OnEscapeVerdict(true));
+
+        // The search box empties its text on the press; bUnit does not bubble it, so the half Blazor's dispatch hands
+        // the root is dispatched there by hand.
+        component.Find(".bit-srb-inp").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        component.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        component.WaitForAssertion(() =>
+        {
+            Assert.AreEqual(3, component.FindAll(".bit-nav-ict").Count, "the search box emptied the search");
+            Assert.IsTrue(isOpen, "the drawer stays open on the same press");
+        });
+
+        // The next press is the root's own, which the browser says so of, and it closes the drawer.
+        component.InvokeAsync(() => component.Instance._OnEscapeVerdict(false));
+        component.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        component.WaitForAssertion(() => Assert.IsFalse(isOpen));
+    }
+
+    [TestMethod]
+    public void BitNavPanelShouldIgnoreAModifiedEscape()
+    {
+        // Only the plain key is claimed, so only the plain key acts: one with a modifier is the surrounding surface's.
+        var isOpen = true;
+
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, TreeItems());
+            parameters.Add(p => p.SearchDebounceTime, 0);
+            parameters.Bind(p => p.IsOpen, isOpen, v => isOpen = v);
+        });
+
+        SetDrawerScreen(component, true);
+
+        component.Find(".bit-srb-inp").Change("settings");
+        component.WaitForAssertion(() => Assert.AreEqual(1, component.FindAll(".bit-nav-ict").Count));
+
+        component.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape", ShiftKey = true });
+
+        component.WaitForAssertion(() =>
+        {
+            Assert.AreEqual(1, component.FindAll(".bit-nav-ict").Count, "the search stays in place");
+            Assert.IsTrue(isOpen);
+        });
+
+        // With no search to empty, the plain key would close the drawer; a modified one leaves it open.
+        var drawerIsOpen = true;
+
+        var drawer = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, Items);
+            parameters.Bind(p => p.IsOpen, drawerIsOpen, v => drawerIsOpen = v);
+        });
+
+        SetDrawerScreen(drawer, true);
+
+        drawer.WaitForAssertion(() => Assert.AreEqual("claim", drawer.Find(".bit-npn").GetAttribute("data-bit-esc")));
+
+        drawer.Find(".bit-npn").KeyDown(new KeyboardEventArgs { Key = "Escape", AltKey = true });
+
+        drawer.WaitForAssertion(() => Assert.IsTrue(drawerIsOpen));
+    }
+
+    [TestMethod]
+    public void BitNavPanelShouldNotClaimEscapeWhenDisabled()
+    {
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, Items);
+            parameters.Add(p => p.IsOpen, true);
+            parameters.Add(p => p.Disabled, true);
+        });
+
+        SetDrawerScreen(component, true);
+
+        component.WaitForAssertion(() => Assert.IsNull(component.Find(".bit-npn").GetAttribute("data-bit-esc")));
+    }
+
+    [TestMethod]
     public void BitNavPanelOpenAndCloseShouldDriveTheOpenState()
     {
         var isOpen = false;
@@ -1411,6 +1581,36 @@ public class BitNavPanelTests : BunitTestContext
         });
 
         Assert.AreEqual(isEnd, component.Find(".bit-npn").ClassList.Contains("bit-npn-end"));
+    }
+
+    // The drawer is docked to the edge its Placement names in the direction it is laid out in, and the swipe that closes
+    // it goes towards that edge. A Dir that names no direction leaves it to the page (unset) or to the content (Auto),
+    // which is read as the swipe starts: a Start drawer of a right-to-left page sits on the right.
+    [TestMethod,
+        DataRow(null, true),
+        DataRow(BitDir.Auto, true),
+        DataRow(BitDir.Ltr, false)
+    ]
+    public async Task BitNavPanelSwipeShouldCloseTowardsTheEdgeOfTheDirectionItIsLaidOutIn(BitDir? dir, bool closes)
+    {
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
+
+        var isOpen = true;
+
+        var component = RenderComponent<BitNavPanel<BitNavItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, Items);
+            parameters.Add(p => p.Dir, dir);
+            parameters.Bind(p => p.IsOpen, isOpen, v => isOpen = v);
+        });
+
+        var trap = component.FindComponent<BitSwipeTrap>();
+
+        await component.InvokeAsync(() => trap.Instance._OnStart(0, 0));
+        await component.InvokeAsync(() => trap.Instance._OnTrigger(100, 0, 1, 0));
+
+        Assert.AreEqual(closes, isOpen is false);
+        Assert.AreEqual(dir is not BitDir.Ltr, Context.JSInterop.Invocations.Any(i => i.Identifier == "BitBlazorUI.Utils.isRtl"));
     }
 
     [TestMethod]

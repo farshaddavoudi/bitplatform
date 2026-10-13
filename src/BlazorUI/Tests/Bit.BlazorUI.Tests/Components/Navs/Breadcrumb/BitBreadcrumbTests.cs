@@ -562,7 +562,7 @@ public class BitBreadcrumbTests : BunitTestContext
     }
 
     [TestMethod]
-    public void BitBreadcrumbShouldLeaveTheDisabledStateOfADisabledButtonToTheNativeAttribute()
+    public void BitBreadcrumbShouldDisableADisabledButtonNativelyAndThroughAriaDisabled()
     {
         var items = new List<BitBreadcrumbItem>
         {
@@ -578,7 +578,7 @@ public class BitBreadcrumbTests : BunitTestContext
         var button = component.Find(".bit-brc-icn button.bit-brc-dis");
 
         Assert.IsTrue(button.HasAttribute("disabled"));
-        Assert.IsFalse(button.HasAttribute("aria-disabled"));
+        Assert.AreEqual("true", button.GetAttribute("aria-disabled"));
     }
 
     [TestMethod]
@@ -1899,7 +1899,7 @@ public class BitBreadcrumbTests : BunitTestContext
         var toggle = Context.JSInterop.Invocations.Last(i => i.Identifier == "BitBlazorUI.Callouts.toggle");
         var rootId = component.Find(".bit-brc").Id;
 
-        Assert.AreEqual(rootId, toggle.Arguments[^1]);
+        Assert.AreEqual(rootId, toggle.Arguments[^2]);
         Assert.AreNotEqual(component.Find(".bit-brc-obt").Id, rootId);
         Assert.IsFalse((component.Find(".bit-brc-cal").GetAttribute("style") ?? "").Contains("--bit-Breadcrumb-"));
     }

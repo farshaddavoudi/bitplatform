@@ -28,6 +28,8 @@ public partial class BitCallout : BitComponentBase
     private bool _focusTrapped;
     private bool _focusOriginCaptured;
     private bool _escapeRegistered;
+    // What the JS side answered for the Escape Blazor is about to hand a key handler (see _OnEscapeVerdict).
+    private readonly BitEscapeVerdict _escapeVerdict = new();
     private bool _tabOutRegistered;
     private bool _scrollLocked;
     private bool _hoverInside;
@@ -646,6 +648,18 @@ public partial class BitCallout : BitComponentBase
         await InvokeAsync(StateHasChanged);
     }
 
+    // Sent by the JS side as an Escape goes down inside the root or the callout while it is open, ahead of the keydown
+    // Blazor then dispatches, saying whether the press is another's - a surface nested there that has spoken for it
+    // first (another callout's anchor, a dialog, a modal, a panel), a part inside them that claimed it (see
+    // Utils.claimEscape), a popup opened from inside them that closes on it - rather than the callout's (see
+    // Utils.watchNestedEscape, which Callouts.toggle sets up with the open). Only those presses are answered, and the
+    // one after them, so one that never reaches a handler is overwritten before the next one is read (BitEscapeVerdict).
+    [JSInvokable("OnEscapeVerdict")]
+    public void _OnEscapeVerdict(bool foreign)
+    {
+        _escapeVerdict.Set(foreign);
+    }
+
     [JSInvokable("OnTabOut")]
     public async Task _OnTabOut()
     {
@@ -882,10 +896,16 @@ public partial class BitCallout : BitComponentBase
         StateHasChanged();
     }
 
+    // When HandleOnRootKeyDown closes the callout on Escape, written onto the root for Utils.claimEscape: read off the
+    // same state it decides on, so the key is claimed exactly when the press closes the callout.
+    private string? EscapeClaim => IsOpen && Disabled is false && NoDismissOnEscape is false ? "claim" : null;
+
     // The key pressed on the anchor, where the focus usually still is while the callout is open. The page-level
     // listener leaves the anchor out, so this is the one place the key is answered for it.
     private async Task HandleOnRootKeyDown(KeyboardEventArgs e)
     {
+        if (e.Key is "Escape" && _escapeVerdict.Take()) return;
+
         if (Disabled || IsOpen is false) return;
 
         if (e.Key is not "Escape" || NoDismissOnEscape) return;
@@ -900,6 +920,8 @@ public partial class BitCallout : BitComponentBase
 
     private async Task HandleOnCalloutKeyDown(KeyboardEventArgs e)
     {
+        if (e.Key is "Escape" && _escapeVerdict.Take()) return;
+
         if (Disabled || IsOpen is false) return;
 
         if (e.Key is not "Escape" || NoDismissOnEscape) return;
@@ -1115,7 +1137,7 @@ public partial class BitCallout : BitComponentBase
                 isCalloutOpen: IsOpen,
                 responsiveMode: ResponsiveMode ?? BitResponsiveMode.None,
                 dropDirection: Direction ?? BitDropDirection.TopAndBottom,
-                isRtl: Dir is BitDir.Rtl,
+                isRtl: ExplicitRtl,
                 // Whatever is named as the scrollable part of the content is what the positioning code caps
                 // to the room the viewport leaves. With nothing named, the callout itself takes that role,
                 // so that content taller than the screen scrolls inside the callout instead of running off
@@ -1141,7 +1163,11 @@ public partial class BitCallout : BitComponentBase
                 alignmentOffset: AlignmentOffset,
                 arrowPadding: ArrowPadding ?? 0,
                 noScrollDismiss: NoDismissOnScroll,
-                rootId: _Id);
+                rootId: _Id,
+                // The keys of the root and the callout are not stopped from bubbling - the page's own handlers
+                // around the anchor hear every key - so an Escape pressed in a surface nested in either of them,
+                // the anchor of a callout nested in this one's content among them, reaches this one's handlers too.
+                nestedEscape: true);
         }
         catch (JSDisconnectedException) { } // we can ignore this exception here
     }
@@ -1664,7 +1690,7 @@ public partial class BitCallout : BitComponentBase
                 id: _contentId,
                 trigger: 0.25m,
                 position: ResponsivePosition,
-                isRtl: Dir is BitDir.Rtl,
+                isRtl: ExplicitRtl,
                 orientationLock: ResponsivePosition.ToSwipeOrientation(),
                 dotnetObj: _swipesDotnetObj,
                 isResponsive: true,

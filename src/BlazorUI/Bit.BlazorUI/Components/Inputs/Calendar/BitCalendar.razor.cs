@@ -1622,17 +1622,61 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
     // takes the focus back. A picker that sits beside the day grid is not covering anything and stays put.
     private void DismissMonthPickerOverlay()
     {
-        if (ShowMonthPickerAsOverlay is false && (ShowTimePicker && ShowTimePickerAsOverlay is false) is false) return;
+        if (MonthPickerIsOverlay is false) return;
 
         ToggleMonthPickerOverlay();
     }
 
+    // Whether the month picker takes the place of the day grid rather than sitting beside it - laid over it, or
+    // swapped in for it beside a time picker - the one rule DismissMonthPickerOverlay and YearMonthPickerActsOnEscape
+    // both go by.
+    private bool MonthPickerIsOverlay => ShowMonthPickerAsOverlay || (ShowTimePicker && ShowTimePickerAsOverlay is false);
+
+    // Whether a plain Escape in the month and year picker does something, the one rule HandleYearMonthPickerKeyDown and
+    // YearMonthPickerEscapeClaim both go by: the year grid always goes back to the month grid, and the month grid is
+    // left only where it takes the place of the day grid (DismissMonthPickerOverlay).
+    private bool YearMonthPickerActsOnEscape => Disabled is false && (_showYearPicker || MonthPickerIsOverlay);
+
+    // When HandleYearMonthPickerKeyDown acts on Escape, written onto the picker's wrapper for Utils.claimEscape, so a
+    // dialog around the calendar stays open on that press, while a month picker beside the day grid leaves it to the
+    // dialog.
+    private string? YearMonthPickerEscapeClaim => YearMonthPickerActsOnEscape ? "claim" : null;
+
+    // Escape leaves the year grid the way it was reached: back to the months of the year it is showing, and from
+    // there - a second Escape - out of the overlay entirely. Answered on the wrapper rather than on the cells, so it
+    // does the same from the header's buttons, and once per press. Only the plain key, the one the wrapper claims
+    // (YearMonthPickerEscapeClaim): an Escape with a modifier is left to the surface around the calendar.
+    private void HandleYearMonthPickerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.IsPlainEscape() is false) return;
+        if (YearMonthPickerActsOnEscape is false) return;
+
+        if (_showYearPicker)
+        {
+            ToggleBetweenMonthAndYearPicker();
+            FocusMonthCell(GetFocusableMonth());
+        }
+        else
+        {
+            DismissMonthPickerOverlay();
+        }
+    }
+
+    // Whether a plain Escape in the time picker hides it, the one rule HandleTimePickerKeyDown and
+    // TimePickerEscapeClaim both go by: only a time picker laid over the day grid is left with the key.
+    private bool TimePickerHidesOnEscape => Disabled is false && ShowTimePickerAsOverlay;
+
+    // When HandleTimePickerKeyDown acts on Escape, written onto the time picker for Utils.claimEscape, so a dialog
+    // around the calendar stays open on the press that hides the overlay, and only on that press.
+    private string? TimePickerEscapeClaim => TimePickerHidesOnEscape ? "claim" : null;
+
     /// <inheritdoc cref="DismissMonthPickerOverlay"/>
     private void HandleTimePickerKeyDown(KeyboardEventArgs e)
     {
-        if (Disabled) return;
-        if (e.Key is not "Escape") return;
-        if (ShowTimePickerAsOverlay is false) return;
+        // Only the plain key, the one the time picker claims (TimePickerEscapeClaim): an Escape with a modifier is
+        // left to the surface around the calendar.
+        if (e.IsPlainEscape() is false) return;
+        if (TimePickerHidesOnEscape is false) return;
 
         ToggleTimePickerOverlay();
     }
@@ -2133,11 +2177,8 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
     {
         if (Disabled) return;
 
-        if (e.Key is "Escape")
-        {
-            DismissMonthPickerOverlay();
-            return;
-        }
+        // Escape is the wrapper's (HandleYearMonthPickerKeyDown), and answers nothing below either.
+        if (e.Key is "Escape") return;
 
         if (e.Key is "PageUp" or "PageDown")
         {
@@ -2151,7 +2192,7 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
             return;
         }
 
-        var isRtl = BitCssClasses.IsRtl(Dir, _culture);
+        var isRtl = await IsRtlArrowAsync(_js, e.Key);
 
         int? target = e.Key switch
         {
@@ -2207,18 +2248,12 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
 
     // The year grid answers the same keys, one row being four years wide, and PageUp/PageDown moving to the
     // adjacent range of years.
-    private void HandleYearKeyDown(KeyboardEventArgs e, int year)
+    private async Task HandleYearKeyDown(KeyboardEventArgs e, int year)
     {
         if (Disabled) return;
 
-        // Escape leaves the year grid the way it was reached: back to the months of the year it is showing,
-        // and from there - a second Escape - out of the overlay entirely.
-        if (e.Key is "Escape")
-        {
-            ToggleBetweenMonthAndYearPicker();
-            FocusMonthCell(GetFocusableMonth());
-            return;
-        }
+        // Escape is the wrapper's (HandleYearMonthPickerKeyDown), and answers nothing below either.
+        if (e.Key is "Escape") return;
 
         if (e.Key is "PageUp" or "PageDown")
         {
@@ -2233,7 +2268,7 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
             return;
         }
 
-        var isRtl = BitCssClasses.IsRtl(Dir, _culture);
+        var isRtl = await IsRtlArrowAsync(_js, e.Key);
 
         int? target = e.Key switch
         {
@@ -2289,7 +2324,7 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
     {
         if (Disabled) return;
 
-        var isRtl = BitCssClasses.IsRtl(Dir, _culture);
+        var isRtl = await IsRtlArrowAsync(_js, e.Key);
 
         DateTime? target = e.Key switch
         {
@@ -2308,6 +2343,10 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
 
         await MoveFocusToDay(target.Value);
     }
+
+    // The direction the calendar knows it is laid out in: the one it was given, or the one its culture implies - and
+    // null when it is the page's or the content's to say, which only the browser knows.
+    internal override bool? ExplicitRtl => BitCssClasses.ExplicitRtl(Dir, _culture);
 
     // A step that runs off the end of what a DateTime, or of what the culture's own calendar, can represent
     // has nowhere to land - so it is refused rather than thrown, and the key simply moves the focus nowhere.
@@ -2524,9 +2563,10 @@ public partial class BitCalendar : BitInputBase<DateTimeOffset?>
 
     // Escape closes the dialog, the way every dismissible surface in the library is left, and hands the
     // keyboard back to the day that opened it (SyncEventDialogFocus).
+    // Only the plain key, the one the dialog claims: an Escape with a modifier is left to the surface around it.
     private void HandleEventDialogKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key is not "Escape") return;
+        if (e.IsPlainEscape() is false) return;
 
         CloseEventModal();
     }

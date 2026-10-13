@@ -495,20 +495,20 @@ public class BitDataGridTests : BunitTestContext
         Assert.AreEqual("ltr", root.GetAttribute("dir"));
         Assert.IsFalse(root.ClassList.Contains("bit-dtg-rtl"));
         // A named direction is the one the root is written in, so there is nothing to read off the page.
-        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.DataGrid.isRtl");
+        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.Utils.isRtl");
     }
 
     [TestMethod]
     public void InheritedRtlFlipsTheHorizontalArrowKeys()
     {
         // No Dir and no cascade: the grid inherits the page's direction, which is read off the root.
-        Context.JSInterop.Setup<bool>("BitBlazorUI.DataGrid.isRtl", _ => true).SetResult(true);
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
         var component = RenderGrid(configure: parameters => parameters.Add(p => p.CellNavigation, true));
 
         var root = component.Find(".bit-dtg");
         Assert.IsNull(root.GetAttribute("dir"));
         // Rendering never asks: only a key or a drag that depends on the direction reads it.
-        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.DataGrid.isRtl");
+        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.Utils.isRtl");
 
         component.Find(".bit-dtg-body > .bit-dtg-row .bit-dtg-cell")
             .KeyDown(new KeyboardEventArgs { Key = "ArrowLeft" });
@@ -524,7 +524,7 @@ public class BitDataGridTests : BunitTestContext
     {
         // The page switching direction under the grid (a language change flipping <html dir>) must be
         // picked up by the very next key, without the grid re-rendering in between.
-        var isRtl = Context.JSInterop.Setup<bool>("BitBlazorUI.DataGrid.isRtl", _ => true);
+        var isRtl = Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true);
         isRtl.SetResult(false);
         var component = RenderGrid(configure: parameters => parameters.Add(p => p.CellNavigation, true));
 
@@ -548,19 +548,19 @@ public class BitDataGridTests : BunitTestContext
     [TestMethod]
     public void VerticalArrowKeysDoNotReadTheDirection()
     {
-        Context.JSInterop.Setup<bool>("BitBlazorUI.DataGrid.isRtl", _ => true).SetResult(true);
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
         var component = RenderGrid(configure: parameters => parameters.Add(p => p.CellNavigation, true));
 
         component.Find(".bit-dtg-body > .bit-dtg-row .bit-dtg-cell")
             .KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
 
-        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.DataGrid.isRtl");
+        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.Utils.isRtl");
     }
 
     [TestMethod]
     public void InheritedRtlMirrorsTheResizeDrag()
     {
-        Context.JSInterop.Setup<bool>("BitBlazorUI.DataGrid.isRtl", _ => true).SetResult(true);
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
         Context.JSInterop.Setup<double>("BitBlazorUI.DataGrid.getWidth", _ => true).SetResult(150);
         var component = RenderGrid(configure: parameters => parameters.Add(p => p.Resizable, true));
 
@@ -1813,6 +1813,19 @@ public class BitDataGridTests : BunitTestContext
         component.Find(".bit-dtg-column-chooser").KeyDown("Escape");
         Assert.AreEqual(0, component.FindAll(".bit-dtg-column-chooser").Count);
         Assert.AreEqual("false", component.Find(".bit-dtg-toolbar-end .bit-dtg-btn").GetAttribute("aria-expanded"));
+    }
+
+    [TestMethod]
+    public void TheOpenColumnChooserClaimsEscape()
+    {
+        var component = RenderGrid(configure: parameters =>
+        {
+            parameters.Add(p => p.ShowToolbar, true);
+            parameters.Add(p => p.ShowColumnChooser, true);
+        });
+
+        component.Find(".bit-dtg-toolbar-end .bit-dtg-btn").Click();
+        Assert.AreEqual("claim", component.Find(".bit-dtg-column-chooser").GetAttribute("data-bit-esc"));
     }
 
     // ------------------------------------------------------- Row appearance
@@ -3519,6 +3532,121 @@ public class BitDataGridTests : BunitTestContext
         DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Enter" });
         Assert.IsNotNull(component.Instance.EditingItem);
         Assert.AreEqual(1, component.FindAll(".bit-dtg-editor-error").Count);
+    }
+
+    // A dialog, a panel or a modal of a cell's template stops no key, so the cell hears the keys pressed in it on their
+    // way out too; the script tells the grid which those are (BitDataGrid.ts, reportNestedSurfaceKey), and the cell
+    // leaves them to the surface: its Escape cancels no edit, its Delete deletes no row.
+    [TestMethod]
+    public async Task CellLeavesTheKeysOfASurfaceInItsContentAlone()
+    {
+        var items = CreateRows();
+        var component = RenderCellEditGrid(items);
+
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        Assert.IsNotNull(component.Instance.EditingItem);
+
+        await component.InvokeAsync(() => component.Instance.OnNestedSurfaceKey(true));
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNotNull(component.Instance.EditingItem, "the surface's Escape is not the cell's");
+
+        await component.InvokeAsync(() => component.Instance.OnNestedSurfaceKey(false));
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNull(component.Instance.EditingItem, "a key pressed in the grid again is the cell's");
+    }
+
+    [TestMethod]
+    public async Task DeleteKeyOfASurfaceInACellDeletesNoRow()
+    {
+        var items = CreateRows();
+        var component = RenderGrid(items, parameters =>
+        {
+            parameters.Add(p => p.CellNavigation, true);
+            parameters.Add(p => p.Editable, true);
+            parameters.Add(p => p.OnRowDelete, (TestRow r) => { items.Remove(r); });
+        });
+
+        await component.InvokeAsync(() => component.Instance.OnNestedSurfaceKey(true));
+        component.Find(".bit-dtg-body > .bit-dtg-row .bit-dtg-cell")
+            .KeyDown(new KeyboardEventArgs { Key = "Delete" });
+
+        Assert.AreEqual(5, FirstCellTexts(component).Count);
+    }
+
+    [TestMethod]
+    public void CellModeClaimsEscapeOnlyWhileACellIsOpen()
+    {
+        var component = RenderCellEditGrid(CreateRows());
+
+        Assert.IsNull(DataCell(component, 0, 1).GetAttribute("data-bit-esc"),
+            "with nothing open the press cancels nothing, so it is left to a surface around the grid");
+
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        Assert.AreEqual("claim", DataCell(component, 0, 1).GetAttribute("data-bit-esc"), "the open cell cancels its edit");
+
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNull(component.Instance.EditingItem);
+        Assert.IsNull(DataCell(component, 0, 1).GetAttribute("data-bit-esc"));
+    }
+
+    [TestMethod]
+    public void AModifiedEscapeCancelsNothingAndClosesNoChooser()
+    {
+        // Only the plain key is claimed, so only the plain key acts: one with a modifier is the surrounding surface's.
+        var component = RenderGrid(configure: parameters =>
+        {
+            parameters.Add(p => p.Editable, true);
+            parameters.Add(p => p.EditMode, BitDataGridEditMode.Cell);
+            parameters.Add(p => p.ShowToolbar, true);
+            parameters.Add(p => p.ShowColumnChooser, true);
+        });
+
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        DataCell(component, 0, 1).KeyDown(new KeyboardEventArgs { Key = "Escape", ShiftKey = true });
+        Assert.IsNotNull(component.Instance.EditingItem, "the open cell stays open");
+        DataCell(component, 1, 0).KeyDown(new KeyboardEventArgs { Key = "Escape", CtrlKey = true });
+        Assert.IsNotNull(component.Instance.EditingItem, "nor does another cell cancel it");
+
+        component.Find(".bit-dtg-toolbar-end .bit-dtg-btn").Click();
+        component.Find(".bit-dtg-column-chooser").KeyDown(new KeyboardEventArgs { Key = "Escape", AltKey = true });
+        Assert.AreEqual(1, component.FindAll(".bit-dtg-column-chooser").Count, "the chooser stays open");
+    }
+
+    [TestMethod]
+    public void RowModeCellsClaimEscapeWhileTheRowIsEdited()
+    {
+        var navigable = RenderGrid(CreateRows(), parameters =>
+        {
+            parameters.Add(p => p.Editable, true);
+            parameters.Add(p => p.CellNavigation, true);
+        });
+
+        Assert.IsNull(DataCell(navigable, 0, 0).GetAttribute("data-bit-esc"));
+
+        navigable.FindAll(".bit-dtg-cell-command button")[0].Click(); // Edit
+        Assert.AreEqual("claim", DataCell(navigable, 0, 0).GetAttribute("data-bit-esc"), "a cell of the edited row cancels the edit");
+        Assert.AreEqual("claim", DataCell(navigable, 1, 0).GetAttribute("data-bit-esc"), "a cell of another row cancels it as well");
+
+        DataCell(navigable, 1, 0).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNull(navigable.Instance.EditingItem);
+        Assert.IsNull(DataCell(navigable, 1, 0).GetAttribute("data-bit-esc"));
+
+        // Without cell navigation Escape is still the way out of the row's editors: the cells of the edited row claim
+        // it and cancel the edit, handing the focus to the row's Edit button as Cancel does, while the other rows' cells
+        // take no keys at all and claim nothing.
+        var plain = RenderGrid(CreateRows(), parameters => parameters.Add(p => p.Editable, true));
+        plain.FindAll(".bit-dtg-cell-command button")[0].Click(); // Edit
+        Assert.IsNotNull(plain.Instance.EditingItem);
+        Assert.AreEqual("claim", DataCell(plain, 0, 0).GetAttribute("data-bit-esc"), "a cell of the edited row cancels the edit");
+        Assert.IsNull(DataCell(plain, 1, 0).GetAttribute("data-bit-esc"), "a cell of another row takes no keys");
+
+        DataCell(plain, 0, 0).KeyDown(new KeyboardEventArgs { Key = "Escape", ShiftKey = true });
+        Assert.IsNotNull(plain.Instance.EditingItem, "an Escape with a modifier is the surrounding surface's");
+
+        DataCell(plain, 0, 0).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNull(plain.Instance.EditingItem);
+        Assert.IsNull(DataCell(plain, 0, 0).GetAttribute("data-bit-esc"));
+        Assert.AreEqual(1, Context.JSInterop.Invocations.Count(i => i.Identifier == "BitBlazorUI.DataGrid.focusRowCommand"));
     }
 
     [TestMethod]

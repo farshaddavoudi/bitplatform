@@ -29,6 +29,11 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
     private readonly Dictionary<TItem, ElementReference> _itemElements = [];
 
 
+
+    [Inject] private IJSRuntime _js { get; set; } = default!;
+
+
+
     /// <summary>
     /// Gets or sets the cascading parameters for the ButtonGroup component.
     /// </summary>
@@ -777,7 +782,10 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
         // button it lands on everywhere - a click on macOS does not.
         HandleOnItemFocus(item);
 
-        if (GetIsDisabled(item)) return;
+        // The group's own Disabled counts as much as the item's: DisabledInteractive keeps a disabled group's
+        // buttons out of the disabled attribute, and a link item has none to begin with, so a key press, a
+        // screen reader or a script still delivers a click here.
+        if (Disabled || GetIsDisabled(item)) return;
         if (GetIsLoading(item)) return;
         // An item the Multiple mode's cap has taken out of reach reports itself as aria-disabled, so it does
         // nothing at all while it does - a click that runs the item's action but cannot toggle it would be
@@ -856,6 +864,15 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
         if (Disabled) return;
         if (e.CtrlKey || e.AltKey || e.MetaKey) return;
 
+        // The direction the group is laid out in, a page's or a content's included, read only for the keys that
+        // act on it since one Dir does not name costs a round trip. It is read before the active item is, so
+        // that a press handled while that round trip is out (a held arrow key) has already moved the focus and
+        // this one steps on from where it landed rather than from where the focus stood before.
+        var horizontalArrow = e.Key is "ArrowRight" or "ArrowLeft";
+        if (horizontalArrow && Vertical) return;
+
+        var isRtl = horizontalArrow && await IsRtlArrowAsync(_js, e.Key);
+
         var focusables = _items.Where(IsItemFocusable).ToList();
         if (focusables.Count == 0) return;
 
@@ -877,17 +894,14 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
         }
 
         var index = current is null ? -1 : focusables.IndexOf(current);
-        var isRtl = (Dir ?? CascadingDir) == BitDir.Rtl;
 
         int next;
         switch (e.Key)
         {
             case "ArrowRight":
-                if (Vertical) return;
                 next = isRtl ? index - 1 : index + 1;
                 break;
             case "ArrowLeft":
-                if (Vertical) return;
                 next = isRtl ? index + 1 : index - 1;
                 break;
             case "ArrowDown":
@@ -1065,15 +1079,16 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
     }
 
     // Disabled items stay focusable in the DisabledInteractive mode, which the WAI-ARIA toolbar
-    // pattern recommends so that they remain discoverable by assistive technologies.
+    // pattern recommends so that they remain discoverable by assistive technologies. Otherwise an item
+    // of a disabled group is out of the tab order like a disabled item is, a link item included.
     private bool IsItemFocusable(TItem item)
     {
-        return DisabledInteractive || GetIsDisabled(item) is false;
+        return DisabledInteractive || (Disabled is false && GetIsDisabled(item) is false);
     }
 
     internal string? GetItemClass(TItem item)
     {
-        List<string> classes = ["bit-btg-itm"];
+        List<string> classes = ["bit-btg-itm", GetItemVariantClass()];
 
         // The first/last buttons are marked explicitly instead of relying on :first-child/:last-child,
         // which break as soon as a button is wrapped by another element.
@@ -1120,6 +1135,17 @@ public partial class BitButtonGroup<TItem> : BitComponentBase where TItem : clas
 
         return string.Join(' ', classes);
     }
+
+    // The group's variant again, on each button: the stylesheet reads a button's colors on the button, so a variable
+    // set on its Style reaches it, and a class of the button's own is what finds it there whatever element an app
+    // wraps an option in, while weighing no more than the button's own class.
+    private string GetItemVariantClass() => Variant switch
+    {
+        BitVariant.Fill => "bit-btg-ifl",
+        BitVariant.Outline => "bit-btg-iol",
+        BitVariant.Text => "bit-btg-itx",
+        _ => "bit-btg-ifl"
+    };
 
     internal string? GetItemStyle(TItem item)
     {

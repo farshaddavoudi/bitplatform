@@ -43,12 +43,16 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
     private bool _focusTrapped;
     private bool _focusTaken;
     private decimal _diffXPanel;
+    private Task<bool>? _swipeRtl;
     private string? _searchText;
     private bool _focusOriginCaptured;
     private bool _focusSearchBoxPending;
     private BitNav<TItem>? _bitNavRef;
     private BitSearchBox? _searchBoxRef;
     private IList<TItem> _filteredNavItems = [];
+    // Which Escapes a part of the panel claimed first (see _OnEscapeVerdict), for the key handler. Made on first use,
+    // so a panel disposed before it rendered never starts watching.
+    private BitEscapeClaimWatch<BitNavPanel<TItem>>? _escapeWatch;
 
 
 
@@ -658,6 +662,21 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
 
 
 
+    /// <summary>
+    /// Sent by the browser as each Escape goes down inside the panel while its root claims the key, ahead of the
+    /// keydown Blazor then dispatches, with whether a part of the panel claimed it first - the search box emptying its
+    /// own text - so the key handler that runs next leaves that press alone.
+    /// <br />
+    /// <strong>This method is intended for internal use and should not be called directly.</strong>
+    /// </summary>
+    [JSInvokable("OnEscapeVerdict")]
+    public void _OnEscapeVerdict(bool foreign)
+    {
+        EscapeWatch.SetVerdict(foreign);
+    }
+
+
+
     protected override string RootElementClass => "bit-npn";
 
     protected override void RegisterCssClasses()
@@ -775,6 +794,13 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
         // is the one that had it on the way in, which is no longer true once the panel has taken it.
         await UpdateModalState();
 
+        if (firstRender && IsDisposed is false)
+        {
+            // The root hears every key pressed inside the panel, so the browser tells it which Escapes a part of it
+            // claimed first (see _OnEscapeVerdict, Utils.watchEscapeClaim).
+            await EscapeWatch.WatchAsync(RootElement);
+        }
+
         // The search box only exists once the panel has left its toggled state, so the focus is moved in the
         // render that brought it back rather than after a guessed delay.
         if (_focusSearchBoxPending && _searchBoxRef is not null)
@@ -868,7 +894,14 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
     private async Task HandleOnKeyDown(KeyboardEventArgs e)
     {
         if (Disabled) return;
-        if (e.Key is not "Escape") return;
+        // Only the plain key, the one the root claims (_EscapeClaim): an Escape with a modifier is left to the
+        // surface the panel sits in, and neither empties the search nor closes the drawer.
+        if (e.IsPlainEscape() is false) return;
+
+        // One Escape does one thing: a press a part of the panel claimed first (the search box, emptying its own
+        // text) is that part's, so it neither empties the search a second time nor closes the drawer as well. The
+        // verdict is read once, so it never outlives the press it was given for.
+        if (EscapeWatch.TakeForeign()) return;
 
         // The first Escape empties an active search - which is what the search box does on its own when the
         // focus is in it, and what the key is expected to do from anywhere else in the panel - and only the
@@ -879,15 +912,23 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
             return;
         }
 
-        if (IsOpen is false) return;
-
-        // Only the drawer of a small screen is dismissed by the key: the column of a wide one is not a surface
-        // over the page, and closing it there would flip the open state - and report it - with nothing on
-        // screen to show for it.
-        if (_isDrawer is false) return;
+        if (_ClosesOnEscape is false) return;
 
         await ClosePanel();
     }
+
+    // Whether an Escape with no search to empty closes the panel, read by HandleOnKeyDown and _EscapeClaim alike.
+    // Only the open drawer of a small screen is dismissed by the key: the column of a wide one is not a surface
+    // over the page, and closing it there would flip the open state - and report it - with nothing on screen to
+    // show for it.
+    private bool _ClosesOnEscape => IsOpen && _isDrawer;
+
+    // When HandleOnKeyDown acts on Escape, written onto the root for Utils.claimEscape: read off the same state it
+    // decides on - an active search, which the press empties, or else the open drawer, which it closes - so a
+    // surface the panel sits in (a dialog, a BitPanel) closes on neither press. The root hears every key pressed
+    // inside the panel; a part of it that acts on the key itself (the search box, emptying its own text) claims
+    // it first. A column with no search to empty leaves the key alone.
+    private string? _EscapeClaim => Disabled is false && (_searchText.HasValue() || _ClosesOnEscape) ? "claim" : null;
 
     // The attributes of the root element: the ones the caller passed, plus the listeners of the panel itself.
     // Those are added to the splatted set rather than written out beside it in the markup, where an attribute
@@ -1074,12 +1115,26 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
         return terms.All(t => haystack.Contains(t, StringComparison.InvariantCultureIgnoreCase));
     }
 
-    private void HandleOnSwipeMove(BitSwipeTrapEventArgs args)
+    // The edge the drawer is docked to turns with the direction it is laid out in, which only the browser knows when
+    // Dir names none (the page's, or the content's for Auto), so it is read as a swipe starts. The swipe trap hands
+    // its start, moves and trigger over as separate calls, and the moves of a quick flick can arrive before that
+    // round trip returns, so the read is kept as a task every later handler of the same swipe awaits.
+    private void HandleOnSwipeStart(BitSwipeTrapEventArgs args)
+    {
+        if (NoSwipe) return;
+        if (IsOpen is false) return;
+        if (ExplicitRtl is not null) return;
+
+        _swipeRtl = IsRtlAsync(_js).AsTask();
+    }
+
+    private async Task HandleOnSwipeMove(BitSwipeTrapEventArgs args)
     {
         if (NoSwipe) return;
         if (IsOpen is false) return;
 
         _diffXPanel = args.DiffX;
+        await ResolveSwipeDirection();
         StateHasChanged();
     }
 
@@ -1097,6 +1152,8 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
         if (NoSwipe) return;
         if (IsOpen is false) return;
 
+        await ResolveSwipeDirection();
+
         // The swipe that closes the drawer goes towards the edge the drawer came from.
         if (args.Direction == (_IsDockedAtEnd ? BitPlacement.Right : BitPlacement.Left))
         {
@@ -1104,6 +1161,19 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
             await ClosePanel();
             StateHasChanged();
         }
+    }
+
+    // Waits for the direction read as the swipe started, which _IsDockedAtEnd then answers from (read here when no
+    // start was reported before it).
+    private async Task ResolveSwipeDirection()
+    {
+        if (ExplicitRtl is not null) return;
+
+        _swipeRtl ??= IsRtlAsync(_js).AsTask();
+
+        if (_swipeRtl.IsCompleted) return;
+
+        await _swipeRtl;
     }
 
     private string? GetPanelStyle(bool isToggled)
@@ -1150,8 +1220,9 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
 
     // Which edge the drawer is docked to, and so which way the swipe that closes it goes. The placement is
     // expressed in the text direction, so the End of a right-to-left layout is the left of the screen; every
-    // value but End docks it at the Start.
-    private bool _IsDockedAtEnd => (Placement is BitPlacement.End) != (Dir is BitDir.Rtl);
+    // value but End docks it at the Start. A direction Dir does not name is the one read as the last swipe started
+    // (left to right until that read has returned, which every swipe handler waits for).
+    private bool _IsDockedAtEnd => (Placement is BitPlacement.End) != (ExplicitRtl ?? (_swipeRtl is { IsCompletedSuccessfully: true } t && t.Result));
 
     // The class that gives the panel its shape. Once the browser has reported the screen it is the shape itself
     // (the drawer or the column), so the stylesheet and everything decided in C# - the dialog role, the page held
@@ -1225,6 +1296,8 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
             await RestoreFocusOrigin();
         }
     }
+
+    private BitEscapeClaimWatch<BitNavPanel<TItem>> EscapeWatch => _escapeWatch ??= new(_js, this);
 
     private async Task SetupFocusTrap()
     {
@@ -1338,6 +1411,9 @@ public partial class BitNavPanel<TItem> : BitComponentBase where TItem : class
             }
         }
         catch (JSDisconnectedException) { } // we can ignore this exception here
+
+        // Disposed even when it never started, so a first render still on its way does not start it afterwards.
+        await EscapeWatch.DisposeAsync();
 
         await base.DisposeAsync(disposing);
     }

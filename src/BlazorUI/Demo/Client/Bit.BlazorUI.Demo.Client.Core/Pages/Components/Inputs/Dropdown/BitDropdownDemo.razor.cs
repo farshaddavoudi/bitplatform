@@ -159,7 +159,7 @@ public partial class BitDropdownDemo
             Name = "ClearOnEscape",
             Type = "bool",
             DefaultValue = "false",
-            Description = "Makes the Escape key take back the whole selection once there is nothing left for it to dismiss: the first press closes the callout (and, in the ComboBox mode, drops the text that was typed into it), and only a press with the callout already closed and nothing typed clears what is selected. It reports itself through OnClear exactly as the clear button does, and it is refused in the same places that button is - a read-only dropdown, a one-way binding.",
+            Description = "Makes the Escape key take back the whole selection once there is nothing left for it to dismiss: the first press closes the callout (and, in the ComboBox mode, drops the text that was typed into it), and only a press with the callout already closed and nothing typed clears what is selected. It reports itself through OnClear exactly as the clear button does, and it is refused in the same places that button is - a read-only dropdown, a one-way binding. Each of those presses is the dropdown's alone, so a Dialog, a Modal, a Panel or an Overlay around it closes on the next one.",
         },
         new()
         {
@@ -1966,7 +1966,7 @@ public partial class BitDropdownDemo
         {
             Name = "--bit-Dropdown-focus-color",
             DefaultValue = "--bit-clr-pri-focus",
-            Description = "Color of the focus indicator: the ring around the field, the underline of the Underlined and NoBorder variants, and the outline drawn inside the row the arrow keys have reached. The Color parameter wins over it.",
+            Description = "Color of the focus indicator: the ring around the field, the underline of the Underlined and NoBorder variants, and the outline drawn inside the row the arrow keys have reached. The Color parameter wins over it. While it is unset, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too.",
         },
         new()
         {

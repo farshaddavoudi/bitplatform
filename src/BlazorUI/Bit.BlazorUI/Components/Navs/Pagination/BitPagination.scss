@@ -11,6 +11,17 @@
 //   --bit-Pagination-button-color             label color of a button at rest                    (default: per Variant, from the primary role)
 //   --bit-Pagination-button-background        fill of a button at rest                           (default: per Variant, from the primary role)
 //   --bit-Pagination-button-border-color      border color of a button at rest                   (default: per Variant, from the primary role)
+//                                             Each button color at rest above has a twin per variant, read ahead of
+//                                             it, so a theme can set one look apart from the other two (Color still wins):
+//   --bit-Pagination-fill-button-color            label color of a button at rest, Fill variant      (default: --bit-Pagination-button-color)
+//   --bit-Pagination-fill-button-background       fill of a button at rest, Fill variant             (default: --bit-Pagination-button-background)
+//   --bit-Pagination-fill-button-border-color     border color of a button at rest, Fill variant     (default: --bit-Pagination-button-border-color)
+//   --bit-Pagination-outline-button-color         label color of a button at rest, Outline variant   (default: --bit-Pagination-button-color)
+//   --bit-Pagination-outline-button-background    fill of a button at rest, Outline variant          (default: --bit-Pagination-button-background)
+//   --bit-Pagination-outline-button-border-color  border color of a button at rest, Outline variant  (default: --bit-Pagination-button-border-color)
+//   --bit-Pagination-text-button-color            label color of a button at rest, Text variant      (default: --bit-Pagination-button-color)
+//   --bit-Pagination-text-button-background       fill of a button at rest, Text variant             (default: --bit-Pagination-button-background)
+//   --bit-Pagination-text-button-border-color     border color of a button at rest, Text variant     (default: --bit-Pagination-button-border-color)
 //   --bit-Pagination-button-hover-color       label color of a hovered button                    (default: $clr-pri-text)
 //   --bit-Pagination-button-hover-background  fill and border of a hovered button                (default: $clr-pri-hover)
 //   --bit-Pagination-button-active-color      label color of a pressed button                    (default: the hover color, then $clr-pri-text)
@@ -30,25 +41,22 @@
 // Color and Size publish nothing while they are left unset: a class that always carried the default would be
 // indistinguishable from one that was asked for. A disabled control keeps the disabled colors whatever the
 // variables say.
+
+$pgn-private-properties:
+    clr-fcs, clr-txt, clr, clr-hover, clr-active, clr-sel, clr-sel-hover, clr-sel-active, clr-dis-bg, clr-dis-text,
+    size-btn, font-size, pad-x,
+    // What the component writes into an inline style, which wins over this on the element it is written on.
+    justify-content;
+
 .bit-pgn {
     // Each root starts the values the Color and Size classes publish out unset, so a pagination never inherits
     // another one's choice from an ancestor carrying those classes, and the classes - declared further down at the
     // same weight - still win on the root that carries them. Left unset, each sends the var() reading it on to the
     // public variable and then to the default, which is what lets an explicit parameter outrank the variable while
     // an unset one leaves the variable in charge.
-    --bit-pgn-clr-fcs: initial;
-    --bit-pgn-clr-txt: initial;
-    --bit-pgn-clr: initial;
-    --bit-pgn-clr-hover: initial;
-    --bit-pgn-clr-active: initial;
-    --bit-pgn-clr-sel: initial;
-    --bit-pgn-clr-sel-hover: initial;
-    --bit-pgn-clr-sel-active: initial;
-    --bit-pgn-clr-dis-bg: initial;
-    --bit-pgn-clr-dis-text: initial;
-    --bit-pgn-size-btn: initial;
-    --bit-pgn-font-size: initial;
-    --bit-pgn-pad-x: initial;
+    @each $name in $pgn-private-properties {
+        --bit-pgn-#{$name}: initial;
+    }
 
     flex-wrap: wrap;
     align-items: center;
@@ -79,7 +87,9 @@
     --bit-pgn-clr-btn-sel-bg-hover: var(--bit-pgn-clr-sel-hover);
     --bit-pgn-clr-btn-sel-bg-active: var(--bit-pgn-clr-sel-active);
 
-    &.bit-rtl {
+    // The direction is the one the pagination is laid out in - its Dir, the page's or its content's (Auto) - with
+    // the class an explicit Dir renders for an engine without :dir().
+    &:is(.bit-rtl, :dir(rtl)) {
         --bit-pgn-ico-transform-end: scaleX(-1);
         --bit-pgn-ico-transform-start: scaleX(1);
     }
@@ -143,35 +153,43 @@
 // picks up the role color of the pagination only while it is pointed at, which keeps the row of pages reading
 // as a row of pages with a gap in it rather than as one more button.
 .bit-pgn-elb {
-    color: inherit;
+    // The state colors below, unset at rest so a gap never takes them from an ancestor.
+    --bit-pgn-sfg: initial;
+    --bit-pgn-sbr: initial;
+    --bit-pgn-sbg: initial;
+
+    color: var(--bit-pgn-sfg, inherit);
     cursor: pointer;
     font: inherit;
     text-decoration: none;
     border-style: $shp-border-style;
     border-width: var(--bit-Pagination-button-border-width, #{$shp-border-width});
-    border-color: transparent;
-    background-color: transparent;
+    border-color: var(--bit-pgn-sbr, transparent);
+    background-color: var(--bit-pgn-sbg, transparent);
     transition: color $mot-duration-short $mot-easing, border-color $mot-duration-short $mot-easing, background-color $mot-duration-short $mot-easing;
 
+    // The states change the variables the gap is painted from rather than its colors, so the rule that declares the
+    // colors is the one at rest: a gap the app paints through Classes keeps that paint under the pointer and the
+    // press, instead of losing it to a state that outranks the app's class.
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-pgn-clr-btn-txt-hover, var(--bit-Pagination-button-hover-color, #{$clr-pri-text}));
-            border-color: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
-            background-color: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
+            --bit-pgn-sfg: var(--bit-pgn-clr-btn-txt-hover, var(--bit-Pagination-button-hover-color, #{$clr-pri-text}));
+            --bit-pgn-sbr: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
+            --bit-pgn-sbg: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
         }
     }
 
     // The press falls back to the hover paint before the default color, so a pagination re-skinned through its
     // hover variables alone does not flash the stock palette while a button is held down.
     &:active {
-        color: var(--bit-pgn-clr-btn-txt-active, var(--bit-Pagination-button-active-color, var(--bit-Pagination-button-hover-color, #{$clr-pri-text})));
-        border-color: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
-        background-color: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
+        --bit-pgn-sfg: var(--bit-pgn-clr-btn-txt-active, var(--bit-Pagination-button-active-color, var(--bit-Pagination-button-hover-color, #{$clr-pri-text})));
+        --bit-pgn-sbr: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
+        --bit-pgn-sbg: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
     }
 
     &:focus-visible {
         z-index: 1;
-        @include focus-ring(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color)));
     }
 
     &[disabled],
@@ -209,6 +227,8 @@
 
 .bit-pgn-gti,
 .bit-pgn-pse {
+    --bit-pgn-sbr: initial;
+
     font: inherit;
 
     // The height is the one every control of the pagination stands at, so the border is counted into it
@@ -220,20 +240,20 @@
     height: var(--bit-pgn-btn-size);
     border-style: $shp-border-style;
     border-width: $shp-border-width;
-    border-color: var(--bit-Pagination-input-border-color, #{$clr-brd-sec});
+    border-color: var(--bit-pgn-sbr, var(--bit-Pagination-input-border-color, #{$clr-brd-sec}));
     border-radius: $shp-radius-control;
     transition: border-color $mot-duration-short $mot-easing;
 
     // The hover darkens the border the way a text input does, which is the cue that the field takes input.
     @media (hover: hover) {
         &:hover {
-            border-color: var(--bit-Pagination-input-border-color, #{$clr-brd-sec-hover});
+            --bit-pgn-sbr: var(--bit-Pagination-input-border-color, #{$clr-brd-sec-hover});
         }
     }
 
     &:focus-visible {
         z-index: 1;
-        @include focus-ring(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color)));
     }
 
     &[disabled] {
@@ -293,10 +313,15 @@
     border-width: var(--bit-Pagination-button-border-width, #{$shp-border-width});
     border-radius: var(--bit-pgn-radius);
     // The colors at rest are resolved per variant on the button (see .bit-pgn-fil), where the Color and the public
-    // variables are ranked against each other.
-    color: var(--bit-pgn-clr-btn-txt);
-    border-color: var(--bit-pgn-clr-btn-brd);
-    background-color: var(--bit-pgn-clr-btn-bg);
+    // variables are ranked against each other. The states set the private state colors read first here (and in
+    // .bit-pgn-sel) rather than the colors themselves, so a button the app paints through Classes keeps that paint
+    // under the pointer and the press; they are unset at rest so a button never takes them from an ancestor.
+    --bit-pgn-sfg: initial;
+    --bit-pgn-sbr: initial;
+    --bit-pgn-sbg: initial;
+    color: var(--bit-pgn-sfg, var(--bit-pgn-clr-btn-txt));
+    border-color: var(--bit-pgn-sbr, var(--bit-pgn-clr-btn-brd));
+    background-color: var(--bit-pgn-sbg, var(--bit-pgn-clr-btn-bg));
 
     // The states below repaint all three, so they animate together from here.
     transition: color $mot-duration-short $mot-easing, border-color $mot-duration-short $mot-easing, background-color $mot-duration-short $mot-easing;
@@ -304,23 +329,23 @@
     // The hover paints the border in the color of the fill in every variant, so one variable repaints both.
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-pgn-clr-btn-txt-hover, var(--bit-Pagination-button-hover-color, #{$clr-pri-text}));
-            border-color: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
-            background-color: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
+            --bit-pgn-sfg: var(--bit-pgn-clr-btn-txt-hover, var(--bit-Pagination-button-hover-color, #{$clr-pri-text}));
+            --bit-pgn-sbr: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
+            --bit-pgn-sbg: var(--bit-pgn-clr-btn-bg-hover, var(--bit-Pagination-button-hover-background, #{$clr-pri-hover}));
         }
     }
 
     // The press falls back to the hover paint before the default color, so a pagination re-skinned through its
     // hover variables alone does not flash the stock palette while a button is held down.
     &:active {
-        color: var(--bit-pgn-clr-btn-txt-active, var(--bit-Pagination-button-active-color, var(--bit-Pagination-button-hover-color, #{$clr-pri-text})));
-        border-color: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
-        background-color: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
+        --bit-pgn-sfg: var(--bit-pgn-clr-btn-txt-active, var(--bit-Pagination-button-active-color, var(--bit-Pagination-button-hover-color, #{$clr-pri-text})));
+        --bit-pgn-sbr: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
+        --bit-pgn-sbg: var(--bit-pgn-clr-btn-bg-active, var(--bit-Pagination-button-active-background, var(--bit-Pagination-button-hover-background, #{$clr-pri-active})));
     }
 
     &:focus-visible {
         z-index: 1;
-        @include focus-ring(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-pgn-clr-fcs, var(--bit-Pagination-focus-color)));
     }
 
     // A link has no disabled attribute of its own, so a page control it cannot reach reports aria-disabled
@@ -352,35 +377,82 @@
 // two shades of one color apart (WCAG 1.4.1).
 .bit-pgn-sel {
     font-weight: var(--bit-Pagination-selected-font-weight, #{$tg-fw-semibold});
-    color: var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text}));
-    border-color: var(--bit-pgn-clr-btn-sel-bg, var(--bit-Pagination-selected-background, #{$clr-pri-dark}));
-    background-color: var(--bit-pgn-clr-btn-sel-bg, var(--bit-Pagination-selected-background, #{$clr-pri-dark}));
+    // The state colors are the ones .bit-pgn-btn resets on the same button.
+    color: var(--bit-pgn-sfg, var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text})));
+    border-color: var(--bit-pgn-sbr, var(--bit-pgn-clr-btn-sel-bg, var(--bit-Pagination-selected-background, #{$clr-pri-dark})));
+    background-color: var(--bit-pgn-sbg, var(--bit-pgn-clr-btn-sel-bg, var(--bit-Pagination-selected-background, #{$clr-pri-dark})));
 
     @media (hover: hover) {
         &:hover {
-            color: var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text}));
-            border-color: var(--bit-pgn-clr-btn-sel-bg-hover, var(--bit-Pagination-selected-background, #{$clr-pri-dark-hover}));
-            background-color: var(--bit-pgn-clr-btn-sel-bg-hover, var(--bit-Pagination-selected-background, #{$clr-pri-dark-hover}));
+            --bit-pgn-sfg: var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text}));
+            --bit-pgn-sbr: var(--bit-pgn-clr-btn-sel-bg-hover, var(--bit-Pagination-selected-background, #{$clr-pri-dark-hover}));
+            --bit-pgn-sbg: var(--bit-pgn-clr-btn-sel-bg-hover, var(--bit-Pagination-selected-background, #{$clr-pri-dark-hover}));
         }
     }
 
     &:active {
-        color: var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text}));
-        border-color: var(--bit-pgn-clr-btn-sel-bg-active, var(--bit-Pagination-selected-background, #{$clr-pri-dark-active}));
-        background-color: var(--bit-pgn-clr-btn-sel-bg-active, var(--bit-Pagination-selected-background, #{$clr-pri-dark-active}));
+        --bit-pgn-sfg: var(--bit-pgn-clr-btn-sel-txt, var(--bit-Pagination-selected-color, #{$clr-pri-text}));
+        --bit-pgn-sbr: var(--bit-pgn-clr-btn-sel-bg-active, var(--bit-Pagination-selected-background, #{$clr-pri-dark-active}));
+        --bit-pgn-sbg: var(--bit-pgn-clr-btn-sel-bg-active, var(--bit-Pagination-selected-background, #{$clr-pri-dark-active}));
     }
 }
 
 
 // forced-colors: the selected page is conveyed by fill colors that High Contrast strips; repaint
 // it with the system selection colors so it stays distinguishable from the other page buttons.
+//
+// A filled page button is painted as a native one. The palette fills the primary role with LinkText under a Canvas
+// label, two system colors the mode keeps - but Chromium draws a Canvas backplate behind every line of text, so the
+// numbers, the labels and the arrow glyphs would be Canvas on Canvas, a row of empty boxes. ButtonText on ButtonFace
+// reads with the backplate and without it (Firefox draws none), and needs no opt-out of the forced palette.
 @media (forced-colors: active) {
-    // Double class matches the specificity of the selected-state hover/active rules above so this
-    // wins the cascade in High Contrast mode (media queries add no specificity of their own).
-    .bit-pgn-btn.bit-pgn-sel {
+    .bit-pgn-btn.bit-pgn-fil:not(.bit-pgn-sel, [disabled], [aria-disabled="true"]) {
+        color: ButtonText;
+        border-color: ButtonText;
+        background-color: ButtonFace;
+    }
+
+    // The current page opts out of the forced palette, in every variant: HighlightText left to the mode would sit
+    // on the Canvas backplate Chromium draws behind it, close to invisible in every contrast theme. Its selectors
+    // carry the attribute exclusions so they outrank the hover and press rules above, which only move variables
+    // this paint does not read.
+    .bit-pgn-btn.bit-pgn-sel:not([disabled], [aria-disabled="true"]) {
+        forced-color-adjust: none;
         color: HighlightText;
         border-color: Highlight;
         background-color: Highlight;
+    }
+
+    // The focus ring is a box-shadow, which the opt-out above hands back to the current page alone, in the theme's
+    // own colors. The focus-ring mixin already restores a Highlight outline, so the shadow is dropped and that outline
+    // is the whole indicator, as it is on every other page button.
+    .bit-pgn-btn.bit-pgn-sel:focus-visible {
+        box-shadow: none;
+    }
+
+    // The pointer states move the variables a button and a clickable gap are painted from to the role's hover and
+    // press colors - a LinkText fill under a Canvas label, the very pair the backplate hides - so they are set back
+    // here, with the selectors of the rules they undo, which this block follows at the same weight.
+    .bit-pgn-btn:hover,
+    .bit-pgn-btn:active,
+    .bit-pgn-sel:hover,
+    .bit-pgn-sel:active,
+    .bit-pgn-elb:hover,
+    .bit-pgn-elb:active {
+        --bit-pgn-sfg: initial;
+        --bit-pgn-sbr: initial;
+        --bit-pgn-sbg: initial;
+    }
+
+    // The state is carried by the system Highlight on the border instead. These selectors weigh exactly as much as
+    // the filled button's above - a :not() counts only its heaviest argument, a single class or attribute here - so
+    // they win on that one by source order alone, and have to stay after it. The current page keeps its own
+    // Highlight fill under the pointer.
+    .bit-pgn-btn:not(.bit-pgn-sel, [disabled], [aria-disabled="true"]):hover,
+    .bit-pgn-btn:not(.bit-pgn-sel, [disabled], [aria-disabled="true"]):active,
+    .bit-pgn-elb:not([disabled], [aria-disabled="true"]):hover,
+    .bit-pgn-elb:not([disabled], [aria-disabled="true"]):active {
+        border-color: Highlight;
     }
 
     // The dimmed fill of a control that cannot be reached is stripped as well, so it is repainted with the
@@ -392,6 +464,15 @@
         color: GrayText;
         border-color: GrayText;
     }
+
+    // A disabled current page has two facts to carry at once, and GrayText over the Highlight fill is a pairing no
+    // contrast is promised for. The fill drops back to the canvas, where GrayText is legible by definition, and the
+    // state moves onto the border, which Highlight still marks out.
+    .bit-pgn-btn.bit-pgn-sel[disabled],
+    .bit-pgn-btn.bit-pgn-sel[aria-disabled="true"] {
+        border-color: Highlight;
+        background-color: Canvas;
+    }
 }
 
 // The variants resolve the colors of a button at rest on the button itself, so a public variable given through
@@ -399,26 +480,32 @@
 // the role first - published only by an explicit Color (see .bit-pgn) - then from the public variables, then from
 // the primary role an unset Color stands for; a color the role leaves alone (the transparent fill of Outline and
 // Text, the transparent border of Text) is the variables' alone.
+//
+// Every button color variable is read in two tiers: the variant's own (--bit-Pagination-fill-button-*,
+// -outline-button-*, -text-button-*) ahead of the shared one, so a theme can give the three looks different colors
+// from :root - an outline pagination's neutral hairline without a ring around every filled button - while a shared
+// variable still re-skins all three at once. Both tiers sit between the role and the default, so an explicit Color
+// still wins over them.
 .bit-pgn-fil {
-    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr-txt, var(--bit-Pagination-button-color, #{$clr-pri-text}));
-    --bit-pgn-clr-btn-bg: var(--bit-pgn-clr, var(--bit-Pagination-button-background, #{$clr-pri}));
-    --bit-pgn-clr-btn-brd: var(--bit-pgn-clr, var(--bit-Pagination-button-border-color, #{$clr-pri}));
+    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr-txt, var(--bit-Pagination-fill-button-color, var(--bit-Pagination-button-color, #{$clr-pri-text})));
+    --bit-pgn-clr-btn-bg: var(--bit-pgn-clr, var(--bit-Pagination-fill-button-background, var(--bit-Pagination-button-background, #{$clr-pri})));
+    --bit-pgn-clr-btn-brd: var(--bit-pgn-clr, var(--bit-Pagination-fill-button-border-color, var(--bit-Pagination-button-border-color, #{$clr-pri})));
     --bit-pgn-clr-btn-bg-dis: var(--bit-pgn-clr-dis);
     --bit-pgn-clr-btn-brd-dis: var(--bit-pgn-clr-dis);
 }
 
 .bit-pgn-otl {
-    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr, var(--bit-Pagination-button-color, #{$clr-pri}));
-    --bit-pgn-clr-btn-bg: var(--bit-Pagination-button-background, transparent);
-    --bit-pgn-clr-btn-brd: var(--bit-pgn-clr, var(--bit-Pagination-button-border-color, #{$clr-pri}));
+    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr, var(--bit-Pagination-outline-button-color, var(--bit-Pagination-button-color, #{$clr-pri})));
+    --bit-pgn-clr-btn-bg: var(--bit-Pagination-outline-button-background, var(--bit-Pagination-button-background, transparent));
+    --bit-pgn-clr-btn-brd: var(--bit-pgn-clr, var(--bit-Pagination-outline-button-border-color, var(--bit-Pagination-button-border-color, #{$clr-pri})));
     --bit-pgn-clr-btn-bg-dis: transparent;
     --bit-pgn-clr-btn-brd-dis: var(--bit-pgn-clr-dis);
 }
 
 .bit-pgn-txt {
-    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr, var(--bit-Pagination-button-color, #{$clr-pri}));
-    --bit-pgn-clr-btn-bg: var(--bit-Pagination-button-background, transparent);
-    --bit-pgn-clr-btn-brd: var(--bit-Pagination-button-border-color, transparent);
+    --bit-pgn-clr-btn-txt: var(--bit-pgn-clr, var(--bit-Pagination-text-button-color, var(--bit-Pagination-button-color, #{$clr-pri})));
+    --bit-pgn-clr-btn-bg: var(--bit-Pagination-text-button-background, var(--bit-Pagination-button-background, transparent));
+    --bit-pgn-clr-btn-brd: var(--bit-Pagination-text-button-border-color, var(--bit-Pagination-button-border-color, transparent));
     --bit-pgn-clr-btn-bg-dis: transparent;
     --bit-pgn-clr-btn-brd-dis: transparent;
 }

@@ -19,6 +19,8 @@
 //   --bit-Splitter-collapse-button-hover-background the collapse button under the pointer      (default: $clr-pri)
 //   --bit-Splitter-collapse-button-radius           corner radius of the collapse button       (default: $shp-radius-full)
 
+$spl-private-properties: fpn-size, fpn-grow, fpn-max, fpn-min, spn-size, spn-grow, spn-max, spn-min, col-size;
+
 .bit-spl {
     height: 100%;
     display: flex;
@@ -37,15 +39,9 @@
     // panel of another would otherwise pick up the split, the minimums and the maximums of the one around it
     // wherever it declares none of its own. Every splitter starts from nothing; the component's own style
     // attribute, and the one a drag writes, still win over these.
-    --bit-spl-fpn-size: initial;
-    --bit-spl-fpn-grow: initial;
-    --bit-spl-fpn-max: initial;
-    --bit-spl-fpn-min: initial;
-    --bit-spl-spn-size: initial;
-    --bit-spl-spn-grow: initial;
-    --bit-spl-spn-max: initial;
-    --bit-spl-spn-min: initial;
-    --bit-spl-col-size: initial;
+    @each $name in $spl-private-properties {
+        --bit-spl-#{$name}: initial;
+    }
 }
 
 /*
@@ -440,7 +436,11 @@ body.bit-spl-drg-bdy {
         background-color: Canvas;
     }
 
+    // The icon is a glyph, and Chromium draws a Canvas backplate behind every glyph of a part left to the forced
+    // palette - a Canvas icon would be an empty Canvas box on the line. Kept out of the palette, it is the Canvas
+    // the grip is drawn in over the CanvasText gutter, a pair of system colors that holds in both engines.
     .bit-spl-gic {
+        forced-color-adjust: none;
         color: Canvas;
     }
 
@@ -454,5 +454,13 @@ body.bit-spl-drg-bdy {
         color: CanvasText;
         border-color: CanvasText;
         background-color: Canvas;
+    }
+
+    // Its hover moves the variables it is painted from to a LinkText fill under a Canvas chevron, which the rule
+    // above no longer reads, so the state is carried by the system Highlight on its outline instead.
+    @media (hover: hover) {
+        .bit-spl-cbt:hover {
+            border-color: Highlight;
+        }
     }
 }

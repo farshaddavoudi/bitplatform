@@ -18,7 +18,7 @@ public partial class BitCarouselDemo
             Name = "AnimationDuration",
             Type = "double",
             DefaultValue = "0.5",
-            Description = "Sets the duration of the scrolling animation in seconds (the default value is 0.5)."
+            Description = "Sets the duration of the scrolling animation in seconds (the default value is 0.5). Reduced motion collapses it unless ForceAnimation is set."
         },
         new()
         {
@@ -723,7 +723,7 @@ public partial class BitCarouselDemo
         {
             Name = "--bit-Carousel-focus-color",
             DefaultValue = "--bit-clr-pri-focus",
-            Description = "Focus ring color of the carousel and of its buttons and dots. The Color parameter wins over it.",
+            Description = "Focus ring color of the carousel and of its buttons and dots. The Color parameter wins over it. While it is unset, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too.",
         },
         new()
         {

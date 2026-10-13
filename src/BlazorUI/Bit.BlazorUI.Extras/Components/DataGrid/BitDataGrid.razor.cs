@@ -632,6 +632,7 @@ public partial class BitDataGrid<TItem> : BitComponentBase
     private DotNetObjectReference<BitDataGrid<TItem>>? _gridSelfRef;
     private IJSObjectReference? _pointerReorderHandle;
     private bool _pointerReorderAttached;
+    private bool _nestedSurfaceKeysWatched;
 
     // select-all indeterminate state ("some but not all selected") is a DOM property, not an HTML
     // attribute, so Blazor markup can't express it; it is synced via a small JS call after render.
@@ -804,6 +805,12 @@ public partial class BitDataGrid<TItem> : BitComponentBase
 
     /// <summary>The 1-based current page.</summary>
     public int CurrentPage => _currentPage;
+
+    // The pager's first / previous and next / last buttons, each pair disabled by the one condition both of its
+    // attributes read.
+    private bool PreviousPagesDisabled => Disabled || CurrentPage <= 1;
+
+    private bool NextPagesDisabled => Disabled || CurrentPage >= TotalPages;
 
     /// <summary>
     /// The page sizes the pager dropdown offers. The size actually in effect is always among them:
@@ -2036,6 +2043,21 @@ public partial class BitDataGrid<TItem> : BitComponentBase
             catch (JSDisconnectedException) { }
         }
 
+        // The keys pressed in a surface rendered in a cell's or a header's template reach their handlers too, which the
+        // script tells apart for them (see KeyInNestedSurface).
+        if (!_nestedSurfaceKeysWatched)
+        {
+            _gridSelfRef ??= DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("BitBlazorUI.DataGrid.watchNestedSurfaceKeys", RootElement, _gridSelfRef);
+                // Only marked watched on success so a failed call retries on a later render.
+                _nestedSurfaceKeysWatched = true;
+            }
+            catch (JSException) { }
+            catch (JSDisconnectedException) { }
+        }
+
         if (!_stickyBandsAttached)
         {
             try
@@ -3054,6 +3076,22 @@ public partial class BitDataGrid<TItem> : BitComponentBase
     internal bool IsEditingCell(TItem item, BitDataGridColumn<TItem> column)
         => IsEditing(item) && (!IsCellEditMode || _editColumnId == column.Id);
 
+    // Whether an Escape on a navigable cell cancels an edit, the one rule the cells' keyboard handling
+    // (BitDataGridCell.HandleKeyDown, HandleCellKeyDownAsync) and their Escape claim both go by: the open cell
+    // cancels its own edit, and any other cell the one that is open, so the key is the grid's while an edit is.
+    internal bool CancelsEditOnEscape => _editItem is not null;
+
+    // Whether the key the cells, the rows and the headers are about to hear was pressed inside a surface rendered in
+    // their content - a dialog, a panel or a modal of a template - rather than in the grid itself. No surface stops a
+    // key, so the page's shortcuts keep working while one is open, and the grid's handlers hear its keys on their way
+    // out too; they leave them to it. The script reports it ahead of the keydown, whenever it changes.
+    internal bool KeyInNestedSurface { get; private set; }
+
+    /// <summary>Invoked from JavaScript ahead of a keydown when whether it was pressed inside a surface rendered in the
+    /// grid's content changes (see <c>KeyInNestedSurface</c>).</summary>
+    [JSInvokable]
+    public void OnNestedSurfaceKey(bool nested) => KeyInNestedSurface = nested;
+
     internal int EditVersion => _editVersion;
 
     /// <summary>The column of the cell open for editing in <see cref="BitDataGridEditMode.Cell"/> mode, or <c>null</c>.</summary>
@@ -3413,7 +3451,7 @@ public partial class BitDataGrid<TItem> : BitComponentBase
     {
         // Everything the drag reads is gathered before it starts: setting _resizingColumn renders the
         // overlay that feeds OnResizeMove, which must not see a start width or direction still pending.
-        var rtl = await IsRtlAsync();
+        var rtl = await IsRtlAsync(JS);
         // Prefer the header cell's real rendered width: a %/fr-sized column has no px width .NET could
         // parse, and even a px-declared one may be constrained by min/max at render time. Falls back to
         // parsing the declared width when JS is unavailable (prerendering, disconnected circuit).
@@ -3490,7 +3528,7 @@ public partial class BitDataGrid<TItem> : BitComponentBase
 
             case "ArrowLeft":
             case "ArrowRight":
-                var widen = (e.Key == "ArrowRight") != await IsRtlAsync();
+                var widen = (e.Key == "ArrowRight") != await IsRtlArrowAsync(JS, e.Key);
                 var step = KeyboardResizeStep * (e.ShiftKey ? 5 : 1);
                 var current = column.ResizedWidth ?? await MeasureColumnWidthAsync(column);
                 SetColumnWidth(column, current + (widen ? step : -step));
@@ -3648,11 +3686,12 @@ public partial class BitDataGrid<TItem> : BitComponentBase
     /// right-to-left grid, and keeps the focus on the moved header.</summary>
     internal async Task OnHeaderKeyDownAsync(BitDataGridColumn<TItem> column, KeyboardEventArgs e)
     {
+        if (KeyInNestedSurface) return;
         if (!e.CtrlKey || e.AltKey || e.MetaKey || e.ShiftKey) return;
         if (e.Key is not ("ArrowLeft" or "ArrowRight")) return;
         if (!ColumnReorderable(column)) return;
 
-        var forward = (e.Key == "ArrowRight") != await IsRtlAsync();
+        var forward = (e.Key == "ArrowRight") != await IsRtlArrowAsync(JS, e.Key);
         if (ColumnMoveTarget(column, forward ? 1 : -1, visibleOnly: true) is null) return;
 
         _focusHeaderColumn = column;
@@ -3976,7 +4015,7 @@ public partial class BitDataGrid<TItem> : BitComponentBase
 
         int row = rowIdx, col = colIndex;
         // Only the horizontal arrows depend on the direction, so only they pay for reading it.
-        var rtl = e.Key is "ArrowLeft" or "ArrowRight" && await IsRtlAsync();
+        var rtl = await IsRtlArrowAsync(JS, e.Key);
 
         // A treegrid opens and closes its nodes from the cell that holds their toggle, as the APG treegrid does: the
         // forward arrow expands a collapsed node, the backward one collapses an expanded node or else moves up to the
@@ -4035,8 +4074,9 @@ public partial class BitDataGrid<TItem> : BitComponentBase
                 else if (e.Key == "Enter" && (HasDetailColumn || (HasDetailTemplate && ExpandDetailOnRowClick)) && _editItem is null)
                     await ToggleDetailAsync(item);
                 return;
-            case "Escape":
-                if (_editItem is not null) await CancelEditAsync();
+            // Only the plain key, the one the cells claim: an Escape with a modifier is the surrounding surface's.
+            case "Escape" when e.IsPlainEscape():
+                if (CancelsEditOnEscape) await CancelEditAsync();
                 return;
             case "Delete":
                 // Keyboard parity with the command column's Delete button, gated the same way
@@ -5111,25 +5151,6 @@ public partial class BitDataGrid<TItem> : BitComponentBase
     }
 
     private string HeaderCellStyle(BitDataGridColumn<TItem> column) => FrozenStyle(column) + Styles?.HeaderCell;
-
-    /// <summary>Whether the grid renders right to left, read at the moment it matters. An explicit or cascaded
-    /// <see cref="BitComponentBase.Dir"/> naming a direction answers it; when Dir leaves it to the page (null) or to the
-    /// content (Auto), the rendered root is asked, so a page or content that changed direction since the
-    /// last render is never answered with a stale value. Only the arrow keys and the resize drag need it -
-    /// the sticky offsets and the resizer are placed with logical properties, which follow the inherited
-    /// direction on their own.</summary>
-    private async Task<bool> IsRtlAsync()
-    {
-        if (Dir is BitDir.Rtl) return true;
-        if (Dir is BitDir.Ltr) return false;
-        try
-        {
-            return await JS.InvokeAsync<bool>("BitBlazorUI.DataGrid.isRtl", RootElement);
-        }
-        catch (JSException) { }
-        catch (JSDisconnectedException) { }
-        return false;
-    }
 
     protected override string RootElementClass => "bit-dtg";
 

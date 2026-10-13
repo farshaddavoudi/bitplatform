@@ -82,7 +82,7 @@
     var trackValueAttr = ToInvariant(_rawBar ?? lower);
 }
 
-<div @ref="RootElement" @attributes="HtmlAttributes"
+<div @ref="RootElement" @attributes="DisabledAwareHtmlAttributes"
      id="@_Id"
      class="@ClassBuilder.Value"
      style="@StyleBuilder.Value"
@@ -246,6 +246,7 @@
                            class="bit-sld-inp bit-sld-inp-lwr @lowerPlace @Classes?.LowerValueInput"
                            tabindex="@(TabIndex ?? "0")"
                            disabled="@(Disabled)"
+                           aria-disabled="@GetInputAriaDisabled(Disabled)"
                            aria-label="@GetThumbAriaLabel(lowerThumbAriaLabel)"
                            aria-labelledby="@GetThumbAriaLabelledBy(lowerThumbAriaLabel)"
                            aria-required="@(Required ? "true" : null)"
@@ -275,6 +276,7 @@
                            class="bit-sld-inp bit-sld-inp-upr @upperPlace @Classes?.UpperValueInput"
                            tabindex="@(TabIndex ?? "0")"
                            disabled="@(Disabled)"
+                           aria-disabled="@(Disabled ? "true" : null)"
                            aria-label="@GetThumbAriaLabel(upperThumbAriaLabel)"
                            aria-labelledby="@GetThumbAriaLabelledBy(upperThumbAriaLabel)"
                            aria-required="@(Required ? "true" : null)"
@@ -341,6 +343,7 @@
                            class="bit-sld-inp @Classes?.ValueInput"
                            tabindex="@(TabIndex ?? "0")"
                            disabled="@(Disabled)"
+                           aria-disabled="@GetInputAriaDisabled(Disabled)"
                            aria-label="@GetThumbAriaLabel(null)"
                            aria-labelledby="@GetThumbAriaLabelledBy(null)"
                            aria-required="@(Required ? "true" : null)"

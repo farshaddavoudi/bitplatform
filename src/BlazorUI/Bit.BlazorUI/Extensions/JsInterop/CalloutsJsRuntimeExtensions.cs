@@ -15,7 +15,9 @@ internal static class CalloutsJsRuntimeExtensions
         bool isCalloutOpen,
         BitResponsiveMode responsiveMode,
         BitDropDirection dropDirection,
-        bool isRtl,
+        // The direction the component's Dir names, or null when it leaves it to the page or the content (see
+        // BitComponentBase.ExplicitRtl): the callout then reads the one the component is laid out in.
+        bool? isRtl,
         string scrollContainerId,
         int scrollOffset,
         string headerId,
@@ -67,11 +69,20 @@ internal static class CalloutsJsRuntimeExtensions
         // would otherwise leave the popup open behind an overlay that swallows every click that could dismiss it.
         // The component is told through its CloseCallout callback, as for any other dismissal from outside.
         bool dismissOnFocusLeave = false,
+        // The id of the trigger the callout is put into the tab order right after while it is open (see
+        // Utils.setupTabOut), or an empty string for none. It rides on the open and the close themselves, so it
+        // costs no round trip of its own and is taken back with every way the callout can close.
+        string tabOutTriggerId = "",
         // The id of the root of the component, which its popup is rendered beside rather than inside. What the
         // consumer declared on the root for the popup too - the custom properties of Style and Styles.Root,
         // ForceAnimation's bit-fam - is carried into the popup while it is relocated to the body; an empty string
         // carries nothing, which is what a callout opened from inside another one passes.
-        string rootId = "") where T : class
+        string rootId = "",
+        // Whether the component's .NET keydown handlers on its root and on the callout act on Escape, and so have to
+        // be told the Escapes a surface nested in either of them answers apart from their own, through their
+        // OnEscapeVerdict callback (see Utils.watchNestedEscape). It rides on the open and the close themselves, so it
+        // costs no round trip of its own.
+        bool nestedEscape = false) where T : class
     {
         return jsRuntime.Invoke<bool>(
             "BitBlazorUI.Callouts.toggle",
@@ -105,7 +116,9 @@ internal static class CalloutsJsRuntimeExtensions
             noScrollDismiss,
             trapFocus,
             dismissOnFocusLeave,
-            rootId);
+            tabOutTriggerId,
+            rootId,
+            nestedEscape);
     }
 
     // Re-applies the space the scrollable content of the open callout cannot use, for the parts above

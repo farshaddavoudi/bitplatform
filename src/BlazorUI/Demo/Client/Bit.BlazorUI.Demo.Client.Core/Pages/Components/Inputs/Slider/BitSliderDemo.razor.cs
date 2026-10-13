@@ -422,7 +422,7 @@ public partial class BitSliderDemo
         {
             Name = "--bit-Slider-focus-color",
             DefaultValue = "--bit-Slider-color when set, otherwise --bit-clr-pri-focus",
-            Description = "The ring around the thumb that holds the keyboard focus. A slider whose value is invalid ignores it and takes --bit-Slider-invalid-color (the error focus color by default) instead. The Color parameter wins over it.",
+            Description = "The ring around the thumb that holds the keyboard focus. A slider whose value is invalid ignores it and takes --bit-Slider-invalid-color (the error focus color by default) instead. The Color parameter wins over it. While neither it nor --bit-Slider-color is set, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too.",
         },
         new()
         {
@@ -620,7 +620,7 @@ public partial class BitSliderDemo
         {
             Name = "--bit-Slider-transition-duration",
             DefaultValue = "--bit-mot-duration-short",
-            Description = "How long the fill and the thumbs take to follow a value that arrives in one jump - a key, a press on the rail, a change made elsewhere on the page. A thumb held under the pointer is never eased, whatever this is set to.",
+            Description = "How long the fill and the thumbs take to follow a value that arrives in one jump - a key, a press on the rail, a change made elsewhere on the page. A thumb held under the pointer is never eased, whatever this is set to. Reduced motion collapses it unless ForceAnimation is set.",
         }
     ];
 

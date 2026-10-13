@@ -213,17 +213,17 @@
 // change of color is not the motion the preference asks to be spared, so it runs on the untouched duration.
 // A Modal asked to animate regardless (ForceAnimation, or inside a subtree that is) keeps its pulse.
 @media (prefers-reduced-motion: reduce) {
-    .bit-mdl-bna:not(.bit-fam *),
-    .bit-mdl-bnb:not(.bit-fam *) {
-        animation-duration: var(--bit-mot-duration-long-full, #{$mot-duration-long});
+    .bit-mdl-bna:not(.bit-fam):not(.bit-fam *),
+    .bit-mdl-bnb:not(.bit-fam):not(.bit-fam *) {
+        animation-duration: $mot-duration-long-full;
         animation-timing-function: steps(1, end);
     }
 
-    .bit-mdl-bna:not(.bit-fam *) {
+    .bit-mdl-bna:not(.bit-fam):not(.bit-fam *) {
         animation-name: bit-mdl-refuse-ring-a;
     }
 
-    .bit-mdl-bnb:not(.bit-fam *) {
+    .bit-mdl-bnb:not(.bit-fam):not(.bit-fam *) {
         animation-name: bit-mdl-refuse-ring-b;
     }
 }
@@ -296,16 +296,18 @@
 
 // flex-start and flex-end follow the inline direction, which a right-to-left layout reverses - so Left would
 // come out on the right. The physical positions are put back onto their own side here, whether the direction
-// is the Modal's own (Dir) or the page's, leaving the start/end ones as the only ones that follow it.
-.bit-mdl-tlf:dir(rtl),
-.bit-mdl-clf:dir(rtl),
-.bit-mdl-blf:dir(rtl) {
+// is the Modal's own (Dir) or the page's, leaving the start/end ones as the only ones that follow it. The class
+// covers a Dir set on the Modal and :dir() a direction it inherits; :is() keeps the class where an engine without
+// :dir() drops the other one, since its list is forgiving.
+.bit-mdl-tlf:is(.bit-rtl, :dir(rtl)),
+.bit-mdl-clf:is(.bit-rtl, :dir(rtl)),
+.bit-mdl-blf:is(.bit-rtl, :dir(rtl)) {
     justify-content: flex-end;
 }
 
-.bit-mdl-trg:dir(rtl),
-.bit-mdl-crg:dir(rtl),
-.bit-mdl-brg:dir(rtl) {
+.bit-mdl-trg:is(.bit-rtl, :dir(rtl)),
+.bit-mdl-crg:is(.bit-rtl, :dir(rtl)),
+.bit-mdl-brg:is(.bit-rtl, :dir(rtl)) {
     justify-content: flex-start;
 }
 
@@ -344,7 +346,8 @@
     display: flex;
     flex-shrink: 0;
     cursor: pointer;
-    color: inherit;
+    --bit-mdl-cls-clr: initial;
+    color: var(--bit-mdl-cls-clr, inherit);
     width: $siz-ctrl-md;
     height: $siz-ctrl-md;
     align-items: center;
@@ -352,19 +355,23 @@
     font-size: $siz-icon-md;
     font-family: inherit;
     border-radius: $shp-radius-button;
-    background-color: transparent;
+    --bit-mdl-cls-bg: initial;
+    background-color: var(--bit-mdl-cls-bg, transparent);
     transition: background-color $mot-duration-short $mot-easing, color $mot-duration-short $mot-easing;
 
+    // The states change the variables the button is painted from rather than its colors, so the one rule that
+    // paints is the one at rest: a close button the app paints through Classes keeps that paint under the
+    // pointer and while it is pressed, instead of losing it to a state that outranks the app's class.
     @media (hover: hover) {
         &:hover:not(:disabled) {
-            color: $clr-fg-pri-hover;
-            background-color: $clr-bg-pri-hover;
+            --bit-mdl-cls-clr: #{$clr-fg-pri-hover};
+            --bit-mdl-cls-bg: #{$clr-bg-pri-hover};
         }
     }
 
     &:active:not(:disabled) {
-        color: $clr-fg-pri-active;
-        background-color: $clr-bg-pri-active;
+        --bit-mdl-cls-clr: #{$clr-fg-pri-active};
+        --bit-mdl-cls-bg: #{$clr-bg-pri-active};
     }
 
     &:focus-visible {

@@ -1,10 +1,21 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// message and one set on the Style of an instance re-skins that one alone:
+// message and one set on the Style of an instance re-skins that one and the messages nested in it:
 //   --bit-Message-color                    text, glyph and button color                   (default: per variant - $clr-inf-text filled, $clr-inf-fg otherwise)
 //   --bit-Message-background               background of the surface                     (default: $clr-inf filled, $clr-inf-tint when Tinted, transparent otherwise)
 //   --bit-Message-border-color             border color                                   (default: $clr-inf filled and outlined, transparent otherwise)
+//                                          Each color above has a twin per variant, read ahead of it, so a theme
+//                                          can set one look apart from the other two (Color still wins over both):
+//   --bit-Message-fill-color               text, glyph and button color, Fill variant     (default: --bit-Message-color)
+//   --bit-Message-fill-background          background of the surface, Fill variant       (default: --bit-Message-background)
+//   --bit-Message-fill-border-color        border color, Fill variant                     (default: --bit-Message-border-color)
+//   --bit-Message-outline-color            text, glyph and button color, Outline variant  (default: --bit-Message-color)
+//   --bit-Message-outline-background       background of the surface, Outline variant    (default: --bit-Message-background)
+//   --bit-Message-outline-border-color     border color, Outline variant                  (default: --bit-Message-border-color)
+//   --bit-Message-text-color               text, glyph and button color, Text variant     (default: --bit-Message-color)
+//   --bit-Message-text-background          background of the surface, Text variant       (default: --bit-Message-background)
+//   --bit-Message-text-border-color        border color, Text variant                     (default: --bit-Message-border-color)
 //   --bit-Message-border-width             thickness of the border                        (default: $shp-border-width)
 //   --bit-Message-radius                   corner radius of the surface and its countdown (default: $shp-radius-surface, none when Square)
 //   --bit-Message-shadow                   elevation of the surface                       (default: none, the Elevation parameter wins)
@@ -24,6 +35,17 @@
 // size and the countdown height, Square over the radius and Elevation over the shadow. The variables restyle the
 // default, not a choice - which is why Color and Size publish nothing while they are left unset: a class that
 // always carried the default would be indistinguishable from one that was asked for.
+
+$msg-private-properties:
+    boxshadow,
+    // The values the Color and Size classes publish, which those classes - declared further down at the same
+    // weight - still win over on the root that carries them. Left unset, each sends the var() reading it on to the
+    // public variable and then to the default, which is what lets an explicit parameter outrank the variable while
+    // an unset one leaves the variable in charge.
+    clr, clr-bg, clr-txt, clr-focus, clr-tint, margin, fontsize, ico-margin, ico-fontsize, btn-size, btn-icosize,
+    act-maxheight, track-size,
+    // What the component writes into an inline style, which wins over this on the element it is written on.
+    justifycontent, maxlines;
 
 .bit-msg {
     width: 100%;
@@ -46,24 +68,9 @@
     box-shadow: var(--bit-msg-boxshadow, var(--bit-Message-shadow, none));
     // A custom property inherits, so a message nested in the content of an elevated one would take its shadow
     // too; each message starts from nothing, and only its own Elevation writes one back on top of this.
-    --bit-msg-boxshadow: initial;
-    // So do the values the Color and Size classes publish, which those classes - declared further down at the same
-    // weight - still win over on the root that carries them. Left unset, each sends the var() reading it on to the
-    // public variable and then to the default, which is what lets an explicit parameter outrank the variable while
-    // an unset one leaves the variable in charge.
-    --bit-msg-clr: initial;
-    --bit-msg-clr-bg: initial;
-    --bit-msg-clr-txt: initial;
-    --bit-msg-clr-focus: initial;
-    --bit-msg-clr-tint: initial;
-    --bit-msg-margin: initial;
-    --bit-msg-fontsize: initial;
-    --bit-msg-ico-margin: initial;
-    --bit-msg-ico-fontsize: initial;
-    --bit-msg-btn-size: initial;
-    --bit-msg-btn-icosize: initial;
-    --bit-msg-act-maxheight: initial;
-    --bit-msg-track-size: initial;
+    @each $name in $msg-private-properties {
+        --bit-msg-#{$name}: initial;
+    }
     --bit-msg-radius: var(--bit-Message-radius, #{$shp-radius-surface});
     --bit-msg-focus: var(--bit-msg-clr-focus, var(--bit-Message-focus-color, #{$clr-inf-focus}));
     // How far a focus ring reaches outside the box it is drawn around.
@@ -83,7 +90,8 @@
 
 
 // The root is focusable while it carries a TabIndex or an AutoFocus, so a keyboard user can land on the message
-// itself - and has to be able to see that they did.
+// itself - and has to be able to see that they did. The ring is in the message's own color even when no Color
+// is set, since an unset one stands for the Info role rather than the primary one the global ring is drawn in.
 .bit-msg:focus-visible {
     @include focus-ring(var(--bit-msg-focus));
 }
@@ -233,19 +241,15 @@
 // A link is painted in the theme's link color, which is picked to sit on the page background rather than on
 // the amber or the red of a message. Inside one it takes the color already carrying the message and keeps the
 // underline, which is what tells it apart from the text around it without leaning on color at all. A disabled
-// link is left with the color that says so.
+// link is left with the color that says so. The rule already outranks every state of a BitLink (a single class
+// and a pseudo-class), so it keeps that color under the pointer, the focus and the press without restating it
+// in states of its own - which would outrank a class the app paints the link with as well.
 .bit-msg-ttl,
 .bit-msg-cnt {
     a:not(.bit-dis),
     .bit-lnk:not(.bit-dis) {
         color: inherit;
         text-decoration: underline;
-
-        &:hover,
-        &:focus,
-        &:active {
-            color: inherit;
-        }
     }
 }
 
@@ -286,19 +290,22 @@
     // rather than restating it, since a button does not inherit its color on its own.
     color: inherit;
     border-radius: $shp-radius-button;
-    background-color: transparent;
+    --bit-msg-btn-sbg: initial;
+    background-color: var(--bit-msg-btn-sbg, transparent);
     transition: background-color $mot-duration-short $mot-easing;
 
     // The buttons sit on the message's own fill, so the states are tinted from the color already on them
-    // rather than from a palette token - that keeps them legible on all three variants and every role.
+    // rather than from a palette token - that keeps them legible on all three variants and every role. They
+    // change the variable the button is painted from rather than its background, so a button the app paints
+    // through Classes keeps that paint under the pointer and while it is pressed.
     @media (hover: hover) {
         &:hover {
-            background-color: translucent(currentcolor, 12%);
+            --bit-msg-btn-sbg: #{translucent(currentcolor, 12%)};
         }
     }
 
     &:active {
-        background-color: translucent(currentcolor, 20%);
+        --bit-msg-btn-sbg: #{translucent(currentcolor, 20%)};
     }
 
     &:focus-visible {
@@ -341,12 +348,10 @@
 }
 
 // The bar runs down towards the start of the line. The class covers a Dir set on the message itself, and :dir()
-// a direction it inherits from the page; they are two rules because an engine without :dir() drops a whole list.
-.bit-rtl .bit-msg-prb {
-    transform-origin: right;
-}
-
-.bit-msg-prb:dir(rtl) {
+// a direction it inherits from the page; :is() keeps the class where an engine without :dir() drops the other
+// one, since its list is forgiving. The class is reached through child combinators only, so a message nested in
+// one that reads the other way keeps its own direction.
+.bit-msg-prb:is(:dir(rtl), .bit-msg.bit-rtl > .bit-msg-prg > *) {
     transform-origin: right;
 }
 
@@ -373,15 +378,32 @@
 // forced-colors: Windows High Contrast repaints every surface from one system pair, which takes the tint out
 // of the two round buttons - their hover fill turns into an opaque block of the very color their glyph is
 // drawn in - and leaves the countdown bar indistinguishable from the track it runs down. Both are painted
-// back with the system colors that still carry a meaning there.
+// back with the system colors that still carry a meaning there. The buttons' pair is kept out of the forced
+// palette: Chromium draws a Canvas backplate behind every line of text, the glyph included, and HighlightText is
+// as dark or as light as Canvas in a contrast theme, so the glyph would vanish into it the moment it is pointed
+// at. Opted out, the theme's focus ring would come back as well, so it is left to the system outline the
+// focus-ring mixin draws in this mode.
+//
+// A Fill message is painted as a plain surface. The palette gives the primary role, and the foreground ones, a
+// Canvas on-color, which is all the text and the icon read - Canvas over that backplate, a message with nothing
+// in it. CanvasText on Canvas reads with the backplate and without it (Firefox draws none), and the border keeps
+// the edge the fill used to draw.
 @media (forced-colors: active) {
     .bit-msg-exb,
     .bit-msg-dmb {
         &:hover,
         &:active {
+            forced-color-adjust: none;
             color: HighlightText;
             background-color: Highlight;
+            box-shadow: none;
         }
+    }
+
+    .bit-msg-fil {
+        color: CanvasText;
+        border-color: CanvasText;
+        background-color: Canvas;
     }
 
     .bit-msg-prg {
@@ -399,28 +421,38 @@
 // .bit-msg) - then from the public variables, then from the Info role an unset Color stands for; a color the role
 // leaves alone (the transparent background of Outline and Text, the transparent border of Text) is the variables'
 // alone.
+//
+// Every color variable is read in two tiers: the variant's own (--bit-Message-fill-*, -outline-*, -text-*) ahead of
+// the shared one, so a theme can give the three looks different colors from :root - a neutral hairline around the
+// outlined messages without a border on every filled one - while a shared variable still re-skins all three at once.
+// Both tiers sit between the role and the default, so an explicit Color still wins over them.
 .bit-msg-fil {
-    --bit-msg-fg: var(--bit-msg-clr, var(--bit-Message-color, #{$clr-inf-text}));
-    --bit-msg-bg: var(--bit-msg-clr-bg, var(--bit-Message-background, #{$clr-inf}));
-    --bit-msg-brd: var(--bit-msg-clr-bg, var(--bit-Message-border-color, #{$clr-inf}));
-}
-
-.bit-msg-otl {
-    --bit-msg-fg: var(--bit-msg-clr-txt, var(--bit-Message-color, #{$clr-inf-fg}));
-    --bit-msg-bg: var(--bit-Message-background, transparent);
-    --bit-msg-brd: var(--bit-msg-clr-bg, var(--bit-Message-border-color, #{$clr-inf}));
-}
-
-.bit-msg-txt {
-    --bit-msg-fg: var(--bit-msg-clr-txt, var(--bit-Message-color, #{$clr-inf-fg}));
-    --bit-msg-bg: var(--bit-Message-background, transparent);
-    --bit-msg-brd: var(--bit-Message-border-color, transparent);
+    --bit-msg-fg: var(--bit-msg-clr, var(--bit-Message-fill-color, var(--bit-Message-color, #{$clr-inf-text})));
+    --bit-msg-bg: var(--bit-msg-clr-bg, var(--bit-Message-fill-background, var(--bit-Message-background, #{$clr-inf})));
+    --bit-msg-brd: var(--bit-msg-clr-bg, var(--bit-Message-fill-border-color, var(--bit-Message-border-color, #{$clr-inf})));
 }
 
 // Tinted: the surface the two unfilled variants leave to the page is washed with the role instead, and the
-// text stays on the foreground shade, which is picked to be read on that wash. Only rendered on those two.
-.bit-msg-tnt {
-    --bit-msg-bg: var(--bit-msg-clr-tint, var(--bit-Message-background, #{$clr-inf-tint}));
+// text stays on the foreground shade, which is picked to be read on that wash. Only rendered on those two, so it
+// is written inside each of them, where the wash is read through that variant's own background first.
+.bit-msg-otl {
+    --bit-msg-fg: var(--bit-msg-clr-txt, var(--bit-Message-outline-color, var(--bit-Message-color, #{$clr-inf-fg})));
+    --bit-msg-bg: var(--bit-Message-outline-background, var(--bit-Message-background, transparent));
+    --bit-msg-brd: var(--bit-msg-clr-bg, var(--bit-Message-outline-border-color, var(--bit-Message-border-color, #{$clr-inf})));
+
+    &.bit-msg-tnt {
+        --bit-msg-bg: var(--bit-msg-clr-tint, var(--bit-Message-outline-background, var(--bit-Message-background, #{$clr-inf-tint})));
+    }
+}
+
+.bit-msg-txt {
+    --bit-msg-fg: var(--bit-msg-clr-txt, var(--bit-Message-text-color, var(--bit-Message-color, #{$clr-inf-fg})));
+    --bit-msg-bg: var(--bit-Message-text-background, var(--bit-Message-background, transparent));
+    --bit-msg-brd: var(--bit-Message-text-border-color, var(--bit-Message-border-color, transparent));
+
+    &.bit-msg-tnt {
+        --bit-msg-bg: var(--bit-msg-clr-tint, var(--bit-Message-text-background, var(--bit-Message-background, #{$clr-inf-tint})));
+    }
 }
 
 // Role classes are generated from the shared $bit-color-roles map (see color-role-maps.scss). Published only by an

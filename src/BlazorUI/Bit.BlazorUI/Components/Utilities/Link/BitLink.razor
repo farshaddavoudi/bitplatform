@@ -36,6 +36,8 @@
     var target = Target.HasValue() ? Target : splattedTarget;
     var role = splattedRole ?? (Disabled ? "link" : null);
     var ariaDisabled = Disabled ? "true" : splattedDisabled;
+    // Out of reach natively unless AllowDisabledFocus keeps it in the tab order, where aria-disabled carries the state alone.
+    var nativeDisabled = Disabled && AllowDisabledFocus is false;
     var ariaCurrent = GetAriaCurrent();
 
     @* A link that cannot take the focus must not pull it on the first render - a hand-written autofocus included. *@
@@ -88,7 +90,7 @@
 
 @if (isAnchor)
 {
-    <a @ref="RootElement" @attributes="HtmlAttributes" @onclick="HandleClick"
+    <a @ref="RootElement" @attributes="DisabledAwareHtmlAttributes" @onclick="HandleClick"
        @onclick:stopPropagation="StopPropagation"
        @onclick:preventDefault="@(isHash || PreventDefault || Disabled)"
        id="@_Id"
@@ -113,7 +115,7 @@
 }
 else
 {
-    <button @ref="RootElement" @attributes="HtmlAttributes" @onclick="HandleClick" @onclick:stopPropagation="StopPropagation"
+    <button @ref="RootElement" @attributes="DisabledAwareHtmlAttributes" @onclick="HandleClick" @onclick:stopPropagation="StopPropagation"
             id="@_Id"
             dir="@dir"
             type="button"
@@ -125,7 +127,7 @@ else
             class="@ClassBuilder.Value"
             aria-current="@ariaCurrent"
             aria-describedby="@ariaDescribedBy"
-            disabled="@(Disabled && AllowDisabledFocus is false)"
+            disabled="@nativeDisabled"
             aria-disabled="@ariaDisabled">
         @body
     </button>

@@ -6,10 +6,14 @@
 // to (0,3,0) so it wins over any packaged (or similarly-specific app) palette block, while inline
 // theme overrides (an explicit runtime choice) still take precedence as inline style always does.
 // The `[bit-theme]` twin covers scoped-preset elements, whose OWN palette declarations would
-// otherwise beat these values arriving only by inheritance from :root.
+// otherwise beat these values arriving only by inheritance from :root. The `[bit-theme-overlay]` one
+// covers the element of an inline theme overlay, on which every theme re-declares its family aliases
+// (theme-overlay.scss) from up to (0,4,0) - in a bundle linked after this one, for the Extras presets -
+// so it carries one more :root than those.
 @media (forced-colors: active) {
     :root:root:root,
-    :root:root:root [bit-theme] {
+    :root:root:root [bit-theme],
+    :root:root:root:root [bit-theme-overlay] {
         --bit-clr-fg-pri: CanvasText;
         --bit-clr-fg-sec: CanvasText;
         --bit-clr-fg-ter: CanvasText;
@@ -18,6 +22,14 @@
         --bit-clr-bg-ter: Canvas;
         --bit-clr-brd-pri: CanvasText;
         --bit-clr-brd-sec: CanvasText;
+        // The primary role and its on-color are a pair no token can make legible as a FILL. Chromium draws a Canvas
+        // backplate behind every line of text (and icon glyph) left to the forced palette, so an on-color has to stand
+        // out from Canvas; Firefox draws none, so it has to stand out from the fill as well - which leaves the fill no
+        // system color but one as dark or as light as Canvas. And --bit-clr-pri is not only a fill: it is the color
+        // of every link, accent, rule and ring of the library, where Canvas would be the page's own color. So the
+        // pair stays the one a contrast theme gives a link, and a part that fills itself with a role under its
+        // on-color is painted in its own forced-colors block - as a native button (ButtonText on ButtonFace) or as a
+        // plain surface (CanvasText on Canvas). BitForcedColorsBrowserTests reads every such part in each engine.
         --bit-clr-pri: LinkText;
         --bit-clr-pri-hover: LinkText;
         --bit-clr-pri-active: LinkText;

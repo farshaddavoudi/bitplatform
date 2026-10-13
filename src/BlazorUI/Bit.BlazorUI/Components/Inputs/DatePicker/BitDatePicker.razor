@@ -23,7 +23,7 @@
     var decreaseSecondIconCss = BitIconInfo.From(TimePickerDecreaseSecondIcon, TimePickerDecreaseSecondIconName ?? "ChevronDownSmall")?.GetCssClasses();
 }
 
-<div @ref="RootElement" @attributes="HtmlAttributes"
+<div @ref="RootElement" @attributes="DisabledAwareHtmlAttributes"
      id="@_Id"
      style="@StyleBuilder.Value"
      data-bit-popup-style="@(GetPopupStyle(_hasFocus, Styles?.Focused, Styles?.Root))"
@@ -66,6 +66,7 @@
                        placeholder="@Placeholder"
                        value="@CurrentValueAsString"
                        disabled=@(Disabled)
+                       aria-disabled="@GetInputAriaDisabled(Disabled)"
                        readonly=@(AllowTextInput is false || ReadOnly)
                        aria-expanded="@(IsOpen ? "true" : "false")"
                        aria-controls="@(IsOpen ? _dialogId : null)"
@@ -90,7 +91,8 @@
                             type="button"
                             title="@ClearButtonTitle"
                             aria-label="@ClearButtonTitle"
-                            disabled="@ReadOnly">
+                            disabled="@ReadOnly"
+                            aria-disabled="@(ReadOnly ? "true" : null)">
                         <i aria-hidden="true"
                            style="@Styles?.ClearButtonIcon"
                            class="bit-dtp-cic @clearBtnIconCss @Classes?.ClearButtonIcon" />
@@ -125,6 +127,7 @@
                class="bit-input-hidden"
                value="@CurrentValueAsString"
                disabled="@(Disabled)"
+               aria-disabled="@GetInputAriaDisabled(Disabled)"
                readonly="@(AllowTextInput is false || ReadOnly)" />
     }
 

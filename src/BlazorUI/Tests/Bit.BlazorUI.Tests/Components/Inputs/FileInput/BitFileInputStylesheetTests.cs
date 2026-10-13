@@ -12,7 +12,7 @@ namespace Bit.BlazorUI.Tests.Components.Inputs.FileInput;
 [TestClass]
 public class BitFileInputStylesheetTests
 {
-    private static string ReadStylesheet() => SourceFiles.Read("Bit.BlazorUI", "Components", "Inputs", "FileInput", "BitFileInput.scss");
+    private static string ReadStylesheet() => SourceFiles.ReadStylesheet("Bit.BlazorUI", "Components", "Inputs", "FileInput", "BitFileInput.scss");
 
     [TestMethod]
     public void BitFileInputShouldLetAParameterWinOverItsPublicVariable()
@@ -24,7 +24,7 @@ public class BitFileInputStylesheetTests
         StringAssert.Contains(stylesheet, "--bit-fin-c-txt: var(--bit-fin-clr-txt, var(--bit-FileInput-text-color, #{$clr-pri-text}));");
         StringAssert.Contains(stylesheet, "--bit-fin-c-hover: var(--bit-fin-clr-hover, var(--bit-FileInput-hover-color, #{$clr-pri-hover}));");
         StringAssert.Contains(stylesheet, "--bit-fin-c-active: var(--bit-fin-clr-active, var(--bit-FileInput-active-color, #{$clr-pri-active}));");
-        StringAssert.Contains(stylesheet, "var(--bit-fin-clr-focus, var(--bit-FileInput-focus-color, #{$clr-pri-focus}))");
+        StringAssert.Contains(stylesheet, "focus-ring-own(var(--bit-fin-clr-focus, var(--bit-FileInput-focus-color)))");
 
         // The drop indicator's own variables come after an explicit Color too.
         StringAssert.Contains(stylesheet, "var(--bit-fin-clr-txt, var(--bit-FileInput-drop-color, var(--bit-fin-c-txt)))");
@@ -41,6 +41,33 @@ public class BitFileInputStylesheetTests
         // A public variable never comes before a value a parameter publishes; it may come before the role slots
         // (--bit-fin-c*), which are already resolved with the Color ahead of it.
         Assert.IsFalse(Regex.IsMatch(stylesheet, @"var\(--bit-FileInput-[a-z-]+, var\(--bit-fin-(?!c\b)"), "A public variable is read before the parameter it restyles the default of.");
+    }
+
+    [TestMethod,
+        DataRow("fill", ".bit-fin-fil", "disabled-background"),
+        DataRow("fill", ".bit-fin-fil", "disabled-border-color"),
+        DataRow("outline", ".bit-fin-otl", "disabled-background"),
+        DataRow("outline", ".bit-fin-otl", "disabled-border-color"),
+        DataRow("text", ".bit-fin-txt", "disabled-background")]
+    public void BitFileInputShouldReadTheVariablesOfItsVariantAheadOfTheSharedOnes(string variant, string selector, string name)
+    {
+        var stylesheet = ReadStylesheet();
+        var block = SourceFiles.GetScssBlock(stylesheet, $"\n{selector} {{");
+
+        // Each variant reads a tier of its own ahead of the shared disabled colors, so a theme can set one look apart
+        // from the others on :root. The role colors stay shared: every variant derives its look from the same role.
+        StringAssert.Contains(block, $"var(--bit-FileInput-{variant}-{name}, var(--bit-FileInput-{name}, ",
+                              $"{selector} does not read --bit-FileInput-{variant}-{name} ahead of --bit-FileInput-{name}.");
+        Assert.IsFalse(Regex.IsMatch(block, $@"var\(--bit-FileInput-(?!{variant}-|text-color\b)(?:fill|outline|text)-"),
+                       $"{selector} reads the variables of another variant.");
+
+        // The remove buttons, which every variant draws alike, read the disabled background their variant resolved - on
+        // them and on the button, never on the root, so a public variable set on Styles.Label or Styles.RemoveButton
+        // still reaches the part it was set on.
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-fin-rbt {"), "background-color: var(--bit-fin-dis-bg, #{$clr-bg-dis});");
+        StringAssert.DoesNotMatch(SourceFiles.GetScssDeclarations(stylesheet, $"\n{selector} {{"), new Regex(@"--bit-fin-dis-bg\s*:"),
+                                  $"{selector} resolves the disabled background on the root, out of reach of a part's own style.");
+        StringAssert.Contains(SourceFiles.GetScssBlock(block, ".bit-fin-lbl,\n    .bit-fin-rbt {"), "--bit-fin-dis-bg: ");
     }
 
     [TestMethod]

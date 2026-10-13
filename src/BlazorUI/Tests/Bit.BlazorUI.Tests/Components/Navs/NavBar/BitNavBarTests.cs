@@ -552,10 +552,10 @@ public class BitNavBarTests : BunitTestContext
 
         var disabled = component.FindAll(".bit-nbr-itm")[1];
 
-        // An item without a URL is a button, whose native disabled attribute already reports the state.
+        // An item without a URL is a button: disabled natively, with the aria-disabled every disabled native control repeats.
         Assert.AreEqual("BUTTON", disabled.TagName);
         Assert.IsTrue(disabled.HasAttribute("disabled"));
-        Assert.IsFalse(disabled.HasAttribute("aria-disabled"));
+        Assert.AreEqual("true", disabled.GetAttribute("aria-disabled"));
         Assert.IsFalse(disabled.HasAttribute("tabindex"));
     }
 
@@ -1565,6 +1565,21 @@ public class BitNavBarTests : BunitTestContext
     public void BitNavBarShouldFlipTheHorizontalArrowsInRtl(string key, int from, int expected)
     {
         var component = RenderNavBar(BasicItems(), p => p.Add(c => c.Dir, BitDir.Rtl));
+
+        PressKeyOn(component, from, key);
+
+        AssertFocused(component, expected);
+    }
+
+    // A Dir that names no direction leaves it to the page (unset) or to the content (Auto), which is read off the
+    // element: the keys follow the direction the component is actually laid out in.
+    [TestMethod]
+    [DataRow(null, "ArrowRight", 2, 1)]
+    [DataRow(BitDir.Auto, "ArrowLeft", 0, 1)]
+    public void BitNavBarShouldFlipTheHorizontalArrowsInAResolvedRtl(BitDir? dir, string key, int from, int expected)
+    {
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
+        var component = RenderNavBar(BasicItems(), p => p.Add(c => c.Dir, dir));
 
         PressKeyOn(component, from, key);
 

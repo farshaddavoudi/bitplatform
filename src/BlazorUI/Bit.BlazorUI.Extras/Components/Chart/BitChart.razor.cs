@@ -919,8 +919,6 @@ public partial class BitChart : BitComponentBase
                 _hoverNodes.Add(hs);
     }
 
-    private const string FocusRingColor = "var(--bit-Chart-focus-color, var(--bit-clr-pri-focus))";
-
     /// <summary>
     /// Draws the active index in a chip where the crosshair meets the index axis. It reuses the tooltip
     /// colors so the two read as one piece of chrome, and is clamped into the plot so it cannot spill
@@ -970,8 +968,10 @@ public partial class BitChart : BitComponentBase
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
+        // IsNavigable holds an empty chart back as well, so EscapeClaim, which goes by it too, never claims a key
+        // this handler then ignores.
+        if (IsNavigable is false) return;
         int n = _scene.Elements.Count;
-        if (n == 0 || IsNavigable is false) return;
         switch (e.Key)
         {
             // Left/right walk the series the reader is on; up/down step between the series at the same
@@ -1011,7 +1011,9 @@ public partial class BitChart : BitComponentBase
             case "0" when IsKeyboardZoomable && IsPlainKey(e):
                 ResetZoom();
                 break;
-            case "Escape":
+            // Only the plain key, the one the plot claims (EscapeClaim): an Escape with a modifier is the
+            // surrounding surface's.
+            case "Escape" when e.IsPlainEscape() && ReleasesOnEscape:
                 _focusIndex = -1;
                 _focusKey = null;
                 ClearHover();
@@ -1022,6 +1024,16 @@ public partial class BitChart : BitComponentBase
     }
 
     private bool IsKeyboardZoomable => _config.Options.Zoom.Enabled && Disabled is false && _scene.IsRadialOrCircular is false;
+
+    // Whether Escape on the plot has anything to let go of, the one rule OnKeyDown and EscapeClaim both go by: the
+    // keyboard position (with the live message describing it), or a tooltip the pointer opened. With neither there
+    // is nothing for the press to do, and it is left to whatever the chart sits in.
+    private bool ReleasesOnEscape => _focusIndex >= 0 || _hoverAnchor is not null;
+
+    // When OnKeyDown acts on Escape, written onto the plot's svg for Utils.claimEscape: read off the same state it
+    // decides on, so the press that lets go of the keyboard position or the tooltip is the chart's alone, and a
+    // dialog the chart sits in closes on the next one.
+    private string? EscapeClaim => IsNavigable && ReleasesOnEscape ? "claim" : null;
 
     private static bool IsPlainKey(KeyboardEventArgs e) => e.CtrlKey is false && e.MetaKey is false && e.AltKey is false;
 
@@ -1099,15 +1111,15 @@ public partial class BitChart : BitComponentBase
     /// <summary>
     /// The ring drawn around the keyboard position. It traces the element's own outline rather than a
     /// stand-in shape: a rounded bar and an arc are both paths, and a circle around an arc's centroid
-    /// would sit inside the ring it is supposed to be marking.
+    /// would sit inside the ring it is supposed to be marking. Its color is the stylesheet's (.bit-cht-focus-ring).
     /// </summary>
     private static BitChartSvgNode FocusOutline(BitChartDataElement el) => el.Shape switch
     {
-        BitChartSvgRect r => new BitChartSvgRect { X = r.X - 2, Y = r.Y - 2, Width = r.Width + 4, Height = r.Height + 4, Fill = "none", Stroke = FocusRingColor, StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
-        BitChartSvgCircle c => new BitChartSvgCircle { Cx = c.Cx, Cy = c.Cy, R = c.R + 5, Fill = "none", Stroke = FocusRingColor, StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
-        BitChartSvgPath p => new BitChartSvgPath { D = p.D, Fill = "none", Stroke = FocusRingColor, StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
-        BitChartSvgPolygon poly => new BitChartSvgPolygon { Points = [.. poly.Points], Closed = poly.Closed, Fill = "none", Stroke = FocusRingColor, StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
-        _ => new BitChartSvgCircle { Cx = el.CenterX, Cy = el.CenterY, R = 8, Fill = "none", Stroke = FocusRingColor, StrokeWidth = 2, CssClass = "bit-cht-focus-ring" }
+        BitChartSvgRect r => new BitChartSvgRect { X = r.X - 2, Y = r.Y - 2, Width = r.Width + 4, Height = r.Height + 4, Fill = "none", StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
+        BitChartSvgCircle c => new BitChartSvgCircle { Cx = c.Cx, Cy = c.Cy, R = c.R + 5, Fill = "none", StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
+        BitChartSvgPath p => new BitChartSvgPath { D = p.D, Fill = "none", StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
+        BitChartSvgPolygon poly => new BitChartSvgPolygon { Points = [.. poly.Points], Closed = poly.Closed, Fill = "none", StrokeWidth = 2, CssClass = "bit-cht-focus-ring" },
+        _ => new BitChartSvgCircle { Cx = el.CenterX, Cy = el.CenterY, R = 8, Fill = "none", StrokeWidth = 2, CssClass = "bit-cht-focus-ring" }
     };
 
     /// <summary>
@@ -1364,11 +1376,13 @@ public partial class BitChart : BitComponentBase
             if (_scene.PlotArea is { Width: > 0 } pa)
                 frac = Math.Clamp((_scene.Elements[index].CenterX - pa.Left) / pa.Width, 0, 1);
             double pDelay = frac * Math.Max(0, dur - elDur);
-            return $"{cursor};animation-delay:{BitChartSvg.N(pDelay)}ms;animation-duration:{BitChartSvg.N(elDur)}ms";
+            // Handed to the stylesheet as tokens rather than written into the animation, so it can scale them by
+            // the shared motion factor and the reduced motion preference collapse them along with the rest.
+            return $"{cursor};--bit-cht-el-del-full:{BitChartSvg.N(pDelay)}ms;--bit-cht-el-dur-full:{BitChartSvg.N(elDur)}ms";
         }
         if (!Staggered) return cursor;
         double delay = index * _config.Options.Animation.DelayBetween;
-        string s = $"{cursor};animation-delay:{BitChartSvg.N(delay)}ms";
+        string s = $"{cursor};--bit-cht-el-del-full:{BitChartSvg.N(delay)}ms";
         if (_scene.HasBars)
         {
             // bit-cht-anim-bars-* use transform-box: view-box, so the origin must be given in view-box
@@ -1381,9 +1395,12 @@ public partial class BitChart : BitComponentBase
         return s;
     }
 
+    // The duration is handed to the stylesheet as the -full token rather than written into the animations directly,
+    // so the stylesheet can still scale it by the shared motion factor and the reduced motion preference collapse it
+    // (an inline duration would be out of reach of the motion tokens).
     private string AnimStyle => _config.Options.Animation.Easing.HasValue()
-        ? $"--bit-cht-dur:{_config.Options.Animation.Duration}ms;--bit-cht-ease:{_config.Options.Animation.Easing}"
-        : $"--bit-cht-dur:{_config.Options.Animation.Duration}ms";
+        ? $"--bit-cht-dur-full:{_config.Options.Animation.Duration}ms;--bit-cht-ease:{_config.Options.Animation.Easing}"
+        : $"--bit-cht-dur-full:{_config.Options.Animation.Duration}ms";
 
     /// <summary>Whether a click on the data does anything, which is what the pointer cursor promises.</summary>
     private bool IsClickable => Disabled is false && OnElementClick.HasDelegate;
@@ -1539,15 +1556,32 @@ public partial class BitChart : BitComponentBase
     }
 
     /// <summary>
-    /// The side a title or subtitle actually renders on. Left and right ones run down the side of the plot
-    /// (rotated); anything that is not one of the four sides falls back to the top.
+    /// The side a title or subtitle actually renders on. Left, Right, Start and End ones run down the side of the
+    /// plot (rotated), Bottom ones across its foot; every other value falls back to the top.
     /// </summary>
     private static BitPlacement TitleSide(BitChartTitleModel title) => title.Placement switch
     {
         BitPlacement.Bottom => BitPlacement.Bottom,
         BitPlacement.Left => BitPlacement.Left,
         BitPlacement.Right => BitPlacement.Right,
+        BitPlacement.Start => BitPlacement.Start,
+        BitPlacement.End => BitPlacement.End,
         _ => BitPlacement.Top
+    };
+
+    /// <summary>
+    /// The class naming which side of the plot a title, subtitle or legend beside it sits on, which places it in the
+    /// row around the plot and turns a title or subtitle over where it is on the left (see BitChart.scss). Start and End
+    /// are named apart from Left and Right, since only they follow the reading direction. A value with no side of its
+    /// own beside the plot has no class, so it is never placed there by mistake.
+    /// </summary>
+    private static string SideClass(BitPlacement side) => side switch
+    {
+        BitPlacement.Left => "bit-cht-lft",
+        BitPlacement.Right => "bit-cht-rgt",
+        BitPlacement.Start => "bit-cht-sta",
+        BitPlacement.End => "bit-cht-end",
+        _ => string.Empty
     };
 
     // Each value is written as the CSS keyword that means what it says: the logical pair as the keywords that

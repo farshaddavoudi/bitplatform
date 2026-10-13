@@ -20,7 +20,7 @@ public partial class BitPdfViewerStylesheetTests
 
         var documented = DocumentedVariables(stylesheet);
 
-        Assert.AreEqual(38, documented.Length, "The stylesheet does not document the thirty-eight public variables.");
+        Assert.AreEqual(39, documented.Length, "The stylesheet does not document the thirty-nine public variables.");
 
         foreach (var name in documented)
         {
@@ -70,10 +70,11 @@ public partial class BitPdfViewerStylesheetTests
         var stylesheet = ReadStylesheet();
 
         StringAssert.Contains(stylesheet, "$pdv-focus: var(--bit-PdfViewer-focus-color, #{$clr-pri-focus});");
-        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-btn {"), "@include focus-ring($pdv-focus);");
-        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-opt {"), "@include focus-ring($pdv-focus);");
-        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-thumb {"), "@include focus-ring($pdv-focus);");
-        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-dialog-btn {"), "@include focus-ring($pdv-focus);");
+        StringAssert.Contains(stylesheet, "$pdv-focus-ring: focus-ring-color($pdv-focus);");
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-btn {"), "@include focus-ring-own($pdv-focus-ring);");
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-opt {"), "@include focus-ring-own($pdv-focus-ring);");
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-thumb {"), "@include focus-ring-own($pdv-focus-ring);");
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-dialog-btn {"), "@include focus-ring-own($pdv-focus-ring);");
         StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-search-input,"), "@include focus-ring($pdv-focus, 0);");
 
         // The parts that fill (or sit in) a scroll container draw their ring inside, where it cannot be clipped.
@@ -93,8 +94,9 @@ public partial class BitPdfViewerStylesheetTests
         var bar = SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-progress-bar.bit-pdv-det {");
         StringAssert.Contains(bar, "animation: none;");
         StringAssert.Contains(bar, "transform-origin: left center;");
-        // Mirroring the track, rather than the determinate bar's origin alone, turns the indeterminate sweep too.
-        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-rtl .bit-pdv-progress {"), "transform: scaleX(-1);");
+        // Mirroring the track, rather than the determinate bar's origin alone, turns the indeterminate sweep too - in the
+        // direction the track is laid out in, whatever made it right to left.
+        StringAssert.Contains(SourceFiles.GetScssBlock(stylesheet, "\n.bit-pdv-progress:is(:dir(rtl), .bit-pdv.bit-rtl > *) {"), "transform: scaleX(-1);");
     }
 
     [TestMethod]

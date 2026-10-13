@@ -133,7 +133,7 @@ public class BitPdfViewerParamsTests : BunitTestContext
 
         var viewer = component.FindComponent<BitPdfViewer>();
 
-        viewer.WaitForAssertion(() => Assert.AreEqual(2, viewer.Instance.PageCount));
+        viewer.WaitForPages(2);
 
         Assert.AreEqual(BitPdfScrollMode.Wrapped, viewer.Instance.CurrentScrollMode);
         Assert.AreEqual(BitPdfCursorTool.Pan, viewer.Instance.CurrentCursorTool);

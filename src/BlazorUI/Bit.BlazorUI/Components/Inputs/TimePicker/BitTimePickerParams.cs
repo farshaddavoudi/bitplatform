@@ -368,20 +368,13 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(CalloutHeaderTemplate), CalloutHeaderTemplate, static t => t.CalloutHeaderTemplate, static (t, v) => t.CalloutHeaderTemplate = v);
         }
 
-        if (CalloutHtmlAttributes is not null)
-        {
-            foreach (var attr in CalloutHtmlAttributes)
-            {
-                if (bitTimePicker.CalloutHtmlAttributes.ContainsKey(attr.Key)) continue;
-
-                bitTimePicker.CalloutHtmlAttributes[attr.Key] = attr.Value;
-            }
-        }
+        bitTimePicker.CascadedCalloutHtmlAttributes = CalloutHtmlAttributes;
 
         if (Classes is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(Classes), Classes, static t => t.Classes, static (t, v) => t.Classes = v);
         }
+
 
         if (ClearButtonIcon is not null)
         {
@@ -402,6 +395,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
         {
             bitTimePicker.TakeFromCascade(nameof(ClearButtonTitle), ClearButtonTitle!, static t => t.ClearButtonTitle, static (t, v) => t.ClearButtonTitle = v);
         }
+
 
         if (CloseButtonIcon is not null)
         {
@@ -438,6 +432,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(Culture), Culture, static t => t.Culture, static (t, v) => t.Culture = v);
         }
 
+
         if (DecreaseHourIcon is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(DecreaseHourIcon), DecreaseHourIcon, static t => t.DecreaseHourIcon, static (t, v) => t.DecreaseHourIcon = v);
@@ -453,6 +448,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(DecreaseHourTitle), DecreaseHourTitle!, static t => t.DecreaseHourTitle, static (t, v) => t.DecreaseHourTitle = v);
         }
 
+
         if (DecreaseMinuteIcon is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(DecreaseMinuteIcon), DecreaseMinuteIcon, static t => t.DecreaseMinuteIcon, static (t, v) => t.DecreaseMinuteIcon = v);
@@ -467,6 +463,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
         {
             bitTimePicker.TakeFromCascade(nameof(DecreaseMinuteTitle), DecreaseMinuteTitle!, static t => t.DecreaseMinuteTitle, static (t, v) => t.DecreaseMinuteTitle = v);
         }
+
 
         if (DecreaseSecondIcon is not null)
         {
@@ -528,6 +525,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(HourStep), HourStep.Value, static t => t.HourStep, static (t, v) => t.HourStep = v);
         }
 
+
         if (Icon is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(Icon), Icon, static t => t.Icon, static (t, v) => t.Icon = v);
@@ -548,6 +546,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(IconTemplate), IconTemplate, static t => t.IconTemplate, static (t, v) => t.IconTemplate = v);
         }
 
+
         if (IncreaseHourIcon is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(IncreaseHourIcon), IncreaseHourIcon, static t => t.IncreaseHourIcon, static (t, v) => t.IncreaseHourIcon = v);
@@ -563,6 +562,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
             bitTimePicker.TakeFromCascade(nameof(IncreaseHourTitle), IncreaseHourTitle!, static t => t.IncreaseHourTitle, static (t, v) => t.IncreaseHourTitle = v);
         }
 
+
         if (IncreaseMinuteIcon is not null)
         {
             bitTimePicker.TakeFromCascade(nameof(IncreaseMinuteIcon), IncreaseMinuteIcon, static t => t.IncreaseMinuteIcon, static (t, v) => t.IncreaseMinuteIcon = v);
@@ -577,6 +577,7 @@ public class BitTimePickerParams : BitComponentBaseParams, IBitComponentParams
         {
             bitTimePicker.TakeFromCascade(nameof(IncreaseMinuteTitle), IncreaseMinuteTitle!, static t => t.IncreaseMinuteTitle, static (t, v) => t.IncreaseMinuteTitle = v);
         }
+
 
         if (IncreaseSecondIcon is not null)
         {

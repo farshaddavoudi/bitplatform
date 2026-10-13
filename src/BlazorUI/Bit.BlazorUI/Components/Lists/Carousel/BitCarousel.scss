@@ -1,7 +1,7 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// carousel and one set on the Style of an instance re-skins that one alone:
+// carousel and one set on the Style of an instance re-skins that one and the carousels nested in it:
 //   --bit-Carousel-height                      height of the carousel                              (default: spacing(25))
 //   --bit-Carousel-gap                         space between the slides; the Gap parameter wins    (default: 0)
 //   --bit-Carousel-easing                      timing function of the slide and fade motion        (default: $mot-easing)
@@ -38,6 +38,11 @@ $csl-clr-hover: var(--bit-csl-clr-hover, var(--bit-Carousel-dot-current-hover-co
 $csl-btn: var(--bit-csl-btn, var(--bit-Carousel-button-color, #{$clr-fg-pri}));
 $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, #{$clr-fg-pri-hover}));
 
+$csl-private-properties:
+    clr, clr-hover, btn, btn-hover, fcs, dot-size, btn-size, ppb-size,
+    // What the component writes into an inline style, which wins over this on the element it is written on.
+    dur-full;
+
 .bit-csl {
     display: flex;
     position: relative;
@@ -49,14 +54,9 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     // same weight - still win on the root that carries them. Left unset, each var() reading them moves on to the
     // public variable and then to the default (see $csl-clr and the rest at the top): the uncolored carousel
     // resolves to the primary accent, which is what it always rendered with.
-    --bit-csl-clr: initial;
-    --bit-csl-clr-hover: initial;
-    --bit-csl-btn: initial;
-    --bit-csl-btn-hover: initial;
-    --bit-csl-fcs: initial;
-    --bit-csl-dot-size: initial;
-    --bit-csl-btn-size: initial;
-    --bit-csl-ppb-size: initial;
+    @each $name in $csl-private-properties {
+        --bit-csl-#{$name}: initial;
+    }
 
     // The space between the slides. It is declared here rather than read with a fallback where it is
     // used, so a carousel nested in another does not inherit the gap of the outer one, and the Gap
@@ -65,13 +65,14 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
 
     // The dot size that is actually drawn, which everything laid out around a dot is measured from.
     --bit-csl-dotsz: var(--bit-csl-dot-size, var(--bit-Carousel-dot-size, #{spacing(1.25)}));
-    --bit-csl-focus: var(--bit-csl-fcs, var(--bit-Carousel-focus-color, #{$clr-pri-focus}));
+    --bit-csl-focus: var(--bit-csl-fcs, var(--bit-Carousel-focus-color));
 
     // The duration of the slide/fade of the pages. The AnimationDuration parameter arrives inline as
-    // the -full token and the transitions read this derived one, following the -full pattern of
-    // motion.fluent.scss, so the reduced-motion query below can still collapse a duration that was
-    // set inline. The fallback is the default of the parameter.
-    --bit-csl-dur: var(--bit-csl-dur-full, 0.5s);
+    // the -full token and the transitions read this derived one, which scales it by the shared motion
+    // factor, so the reduced motion preference still collapses a duration that was set inline - and
+    // ForceAnimation, or an app restoring the motion tokens, still brings it back - with no query of
+    // the carousel's own. The fallback is the default of the parameter.
+    --bit-csl-dur: #{mot-scaled-duration(var(--bit-csl-dur-full, 0.5s))};
 
     // The timing function of the slide and fade motion, read by the transitions the carousel writes inline.
     --bit-csl-ease: var(--bit-Carousel-easing, #{$mot-easing});
@@ -81,24 +82,8 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     gap: var(--bit-Carousel-dots-margin, #{spacing(1.25)});
 
     &:focus-visible {
-        @include focus-ring(var(--bit-csl-focus));
+        @include focus-ring-own(var(--bit-csl-focus));
     }
-}
-
-// 0.01ms instead of 0ms for the same reason as in motion.fluent.scss: a zero-duration transition
-// never fires its transitionend event.
-@media (prefers-reduced-motion: reduce) {
-    .bit-csl {
-        --bit-csl-dur: 0.01ms;
-    }
-}
-
-// The shared .bit-fam opt-out (BitComponentBase.ForceAnimation) only re-points the --bit-mot-* tokens,
-// so the carousel's own token is restored here, both for a carousel that sets ForceAnimation itself
-// and for one sitting inside an opted-out subtree.
-.bit-csl.bit-fam,
-.bit-fam .bit-csl {
-    --bit-csl-dur: var(--bit-csl-dur-full, 0.5s);
 }
 
 .bit-crsi {
@@ -150,25 +135,30 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     text-align: center;
     align-items: center;
     justify-content: center;
-    color: $csl-btn;
+    --bit-csl-btn-sfg: initial;
+    --bit-csl-btn-sbg: initial;
+    color: var(--bit-csl-btn-sfg, #{$csl-btn});
     opacity: var(--bit-Carousel-button-opacity, 0.5);
-    background-color: var(--bit-Carousel-button-background, transparent);
+    background-color: var(--bit-csl-btn-sbg, var(--bit-Carousel-button-background, transparent));
     transition: opacity $mot-duration $mot-easing, background-color $mot-duration $mot-easing;
 
+    // The states change the variables the controls are painted from rather than their colors, so the rules that
+    // paint are the ones at rest: a button or a dot the app paints through Classes keeps that paint under the
+    // pointer, instead of losing it to a state that outranks the app's class.
     @media (hover: hover) {
         &:hover {
             outline: 0;
             text-decoration: none;
             opacity: var(--bit-Carousel-button-hover-opacity, 0.9);
-            color: $csl-btn-hover;
-            background-color: var(--bit-Carousel-button-hover-background, var(--bit-Carousel-button-background, transparent));
+            --bit-csl-btn-sfg: #{$csl-btn-hover};
+            --bit-csl-btn-sbg: var(--bit-Carousel-button-hover-background, var(--bit-Carousel-button-background, transparent));
         }
     }
 
     &:focus-visible {
         opacity: 1;
 
-        @include focus-ring(var(--bit-csl-focus));
+        @include focus-ring-own(var(--bit-csl-focus));
     }
 
     &:disabled {
@@ -190,6 +180,13 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     // The glyphs of the controls come from the icon sizes of the theme. The next/prev glyph sits over a whole slide
     // rather than inside a field, so it is drawn half as large again as a control's own.
     font-size: var(--bit-csl-btn-size, var(--bit-Carousel-button-size, calc(#{$siz-icon-md} * 1.5)));
+
+    // The buttons sit against the edges of the slide container, which clips its overflow, so a ring drawn
+    // outside of them would be cut off on three sides. The indicator is drawn inside the button instead, with
+    // the separator band on its inner side so it keeps its contrast over whatever the slide shows.
+    &:focus-visible {
+        @include focus-ring-inset(var(--bit-csl-focus, #{$clr-pri-focus}), $band: true);
+    }
 }
 
 .bit-csl-lbt {
@@ -285,17 +282,19 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     border-radius: var(--bit-Carousel-dot-radius, #{$shp-radius-full});
     // A border token rather than a background one: the dots are controls, and the border family is the one
     // held to the 3:1 non-text contrast WCAG asks of them against the surface they sit on.
-    background-color: var(--bit-Carousel-dot-color, #{$clr-brd-pri});
+    --bit-csl-dot-sbg: initial;
+    --bit-csl-dot-sfg: initial;
+    background-color: var(--bit-csl-dot-sbg, var(--bit-Carousel-dot-color, #{$clr-brd-pri}));
     transition: background-color $mot-duration-long $mot-easing, width $mot-duration-long $mot-easing, height $mot-duration-long $mot-easing;
 
     @media (hover: hover) {
         &:hover {
-            background-color: var(--bit-Carousel-dot-hover-color, #{$clr-brd-pri-hover});
+            --bit-csl-dot-sbg: var(--bit-Carousel-dot-hover-color, #{$clr-brd-pri-hover});
         }
     }
 
     &:focus-visible {
-        @include focus-ring(var(--bit-csl-focus));
+        @include focus-ring-own(var(--bit-csl-focus));
     }
 
     &:disabled {
@@ -314,14 +313,14 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background-color: transparent;
-    color: $csl-btn;
+    background-color: var(--bit-csl-dot-sbg, transparent);
+    color: var(--bit-csl-dot-sfg, #{$csl-btn});
     transition: color $mot-duration-long $mot-easing;
 
     @media (hover: hover) {
         &:hover {
-            background-color: transparent;
-            color: $csl-btn-hover;
+            --bit-csl-dot-sbg: transparent;
+            --bit-csl-dot-sfg: #{$csl-btn-hover};
         }
     }
 
@@ -332,11 +331,11 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
 }
 
 .bit-csl-cud {
-    background-color: $csl-clr;
+    background-color: var(--bit-csl-dot-sbg, #{$csl-clr});
 
     @media (hover: hover) {
         &:hover {
-            background-color: $csl-clr-hover;
+            --bit-csl-dot-sbg: #{$csl-clr-hover};
         }
     }
 }
@@ -350,13 +349,13 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
 }
 
 .bit-csl-dtt.bit-csl-cud {
-    background-color: transparent;
-    color: $csl-clr;
+    background-color: var(--bit-csl-dot-sbg, transparent);
+    color: var(--bit-csl-dot-sfg, #{$csl-clr});
 
     @media (hover: hover) {
         &:hover {
-            background-color: transparent;
-            color: $csl-clr-hover;
+            --bit-csl-dot-sbg: transparent;
+            --bit-csl-dot-sfg: #{$csl-clr-hover};
         }
     }
 }
@@ -469,5 +468,16 @@ $csl-btn-hover: var(--bit-csl-btn-hover, var(--bit-Carousel-button-hover-color, 
     .bit-csl-dtt.bit-csl-cud {
         color: Highlight;
         background-color: transparent;
+    }
+
+    // A background role is the page's own color, Canvas here, which the arrows and a templated dot would draw
+    // their glyphs in - lost on the canvas, and in Chromium on the Canvas backplate drawn behind them as well.
+    // The role's button colors are taken back, after the role classes they outrank on source order, so those
+    // glyphs read the text color the carousel has without one.
+    @each $role in $bit-background-color-roles {
+        .bit-csl-#{$role} {
+            --bit-csl-btn: initial;
+            --bit-csl-btn-hover: initial;
+        }
     }
 }

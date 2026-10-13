@@ -1,9 +1,9 @@
 ﻿@import '../../../Bit.BlazorUI/Styles/functions.scss';
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// chart and one set on the Style of an instance re-skins that one alone. The colors the chart draws INSIDE
-// the SVG are the defaults of its options (BitChartTickOptions.Color, BitChartGridOptions.Color, ...), which
-// read these same variables, so an option set in C# still wins over them for that one chart:
+// chart and one set on the Style of an instance re-skins that one and the charts nested in it. The colors the chart
+// draws INSIDE the SVG are the defaults of its options (BitChartTickOptions.Color, BitChartGridOptions.Color, ...),
+// which read these same variables, so an option set in C# still wins over them for that one chart:
 //   --bit-Chart-font-family            typeface of every text the chart draws         (default: $tg-font-family)
 //   --bit-Chart-series-color-1..10     the default palette, one per series or slice   (default: the Chart.js palette)
 //   --bit-Chart-title-color            title text                                     (default: $clr-fg-pri)
@@ -24,8 +24,8 @@
 //   --bit-Chart-tooltip-color          tooltip text                                   (default: $clr-tooltip-fg)
 //   --bit-Chart-tooltip-radius         tooltip corner radius                          (default: $shp-radius-popup)
 //   --bit-Chart-tooltip-shadow         tooltip elevation                              (default: $box-shadow-tooltip)
-//   --bit-Chart-focus-color            focus ring of the plot, the keyboard position
-//                                      and the legend items                           (default: $clr-pri-focus)
+//   --bit-Chart-focus-color            focus ring of the plot and the legend items    (default: --bit-shd-focus-ring)
+//                                      and the keyboard position                      (default: $clr-pri-focus)
 //   --bit-Chart-zoom-box-background    fill of the drag-to-zoom selection             (default: $clr-pri at 20%)
 //   --bit-Chart-zoom-box-border-color  border of the drag-to-zoom selection           (default: $clr-pri)
 //   --bit-Chart-inactive-opacity       the series faded behind a highlighted legend
@@ -35,8 +35,15 @@
 //   --bit-Chart-loading-color          the loading label                              (default: $clr-fg-sec)
 //   --bit-Chart-loading-spinner-color  the turning arc of the loading spinner         (default: $clr-pri)
 
+$cht-private-properties: dur-full, ease;
+
 .bit-cht {
-    --bit-cht-clr-focus: var(--bit-Chart-focus-color, #{$clr-pri-focus});
+    // What the component writes into an inline style starts out unset on every root, so an instance nested in
+    // another one never takes the outer one's value for its own; the inline declaration still wins on its element.
+    @each $name in $cht-private-properties {
+        --bit-cht-#{$name}: initial;
+    }
+    --bit-cht-clr-focus: var(--bit-Chart-focus-color);
 
     display: flex;
     box-sizing: border-box;
@@ -56,18 +63,35 @@
     text-align: center;
 }
 
-// A title or subtitle on the left or right runs down the side of the plot instead of across the top. The ones
-// on the left are turned over, so both sides read from the plot outwards.
+// A title or subtitle beside the plot runs down its side instead of across the top. The ones on the left are
+// turned over, so both sides read from the plot outwards.
+//
+// Every rule naming a side below qualifies its part through :where(), so it weighs what the part's own class weighs
+// and a single class an app hands the part (Classes.Title / Subtitle / Legend) can still turn or move it. The
+// right-to-left ones come later at the same weight, which is what lets them win over the left-to-right ones. Their
+// :where() is forgiving too, so an engine without :dir() drops only that alternative and keeps reading the class an
+// explicit Dir renders on the root, two levels up through child combinators only.
 .bit-cht-ttl-v {
     width: auto;
     align-items: center;
     writing-mode: vertical-rl;
 }
 
-.bit-cht-ttl-l {
+// The reading start is the left of a left-to-right chart and the right of a right-to-left one, the end the other way.
+.bit-cht-ttl-v:where(.bit-cht-lft, .bit-cht-sta) {
     rotate: 180deg;
 }
 
+.bit-cht-ttl-v:where(.bit-cht-sta):where(:dir(rtl), .bit-cht.bit-rtl > .bit-cht-mid > *) {
+    rotate: none;
+}
+
+.bit-cht-ttl-v:where(.bit-cht-end):where(:dir(rtl), .bit-cht.bit-rtl > .bit-cht-mid > *) {
+    rotate: 180deg;
+}
+
+// The row around the plot runs in the reading direction, the way a flex row does: its start is on the right of a
+// right-to-left chart, an inherited direction and an explicit Dir alike, since the root renders dir="rtl" for one.
 .bit-cht-mid {
     flex: 1 1 auto;
     display: flex;
@@ -76,16 +100,27 @@
     align-items: stretch;
 }
 
-// The titles and the legend beside the plot are placed by the physical Left and Right, which stay on the side
-// they are named for in both reading directions, so the row is turned back around in a right-to-left chart.
-// Kept apart, so a browser without :dir() drops only the rule it cannot parse and still gets the turn from the
-// class the component sets itself.
-.bit-rtl > .bit-cht-mid {
-    flex-direction: row-reverse;
-}
+// Each part beside the plot takes its place in that row by its side and by how far out it sits: the legend next to
+// the plot, then the subtitle, then the title. Start and End follow the row, so they need nothing more; Left and
+// Right keep their side, so they swap places in a right-to-left chart.
+$cht-side-steps: (lgd: 1, sub: 2, ttl: 3);
 
-.bit-cht-mid:dir(rtl) {
-    flex-direction: row-reverse;
+@each $part, $step in $cht-side-steps {
+    .bit-cht-#{$part}:where(.bit-cht-lft, .bit-cht-sta) {
+        order: -$step;
+    }
+
+    .bit-cht-#{$part}:where(.bit-cht-rgt, .bit-cht-end) {
+        order: $step;
+    }
+
+    .bit-cht-#{$part}:where(.bit-cht-lft):where(:dir(rtl), .bit-cht.bit-rtl > .bit-cht-mid > *) {
+        order: $step;
+    }
+
+    .bit-cht-#{$part}:where(.bit-cht-rgt):where(:dir(rtl), .bit-cht.bit-rtl > .bit-cht-mid > *) {
+        order: -$step;
+    }
 }
 
 .bit-cht-plot {
@@ -106,7 +141,7 @@
 
     &:focus-visible {
         border-radius: $shp-radius-sm;
-        @include focus-ring(var(--bit-cht-clr-focus));
+        @include focus-ring-own(var(--bit-cht-clr-focus));
     }
 }
 
@@ -178,16 +213,20 @@
     align-items: center;
     display: inline-flex;
     border-radius: $shp-radius-sm;
+    --bit-cht-lgd-sbg: initial;
+    background-color: var(--bit-cht-lgd-sbg, transparent);
     transition: background-color $mot-duration-short $mot-easing;
 
+    // The hover moves the variable the item is painted from rather than its background, so an item the app paints
+    // through Classes keeps that paint under the pointer instead of losing it to a state that outranks the class.
     @media (hover: hover) {
         &:not(:disabled):not(.bit-cht-lgd-sta):hover {
-            background-color: $clr-bg-pri-hover;
+            --bit-cht-lgd-sbg: #{$clr-bg-pri-hover};
         }
     }
 
     &:focus-visible {
-        @include focus-ring(var(--bit-cht-clr-focus));
+        @include focus-ring-own(var(--bit-cht-clr-focus));
     }
 
     &:disabled,
@@ -392,9 +431,26 @@
     }
 }
 
+// The entry animations take their pace from the chart's own options, which arrive inline as private -full tokens:
+// the duration of the whole drawing on the SVG, and the pace and the wait of one element (a staggered bar, a point
+// a progressive line reaches) on that element. They are read through the shared motion scale, so the reduced
+// motion preference collapses them - every element then stands drawn in its final state at once - and
+// ForceAnimation, or an app restoring the motion tokens, brings them back, with no query of the chart's own.
+// The element's two are reset on every part that reads them, since an inline declaration is inherited by what is
+// inside the element; the declaration on the element itself still wins.
+$cht-el-private-properties: el-dur-full, el-del-full;
+
+.bit-cht-anim,
+.bit-cht-el-anim {
+    @each $name in $cht-el-private-properties {
+        --bit-cht-#{$name}: initial;
+    }
+}
+
 .bit-cht-anim {
     animation-fill-mode: both;
-    animation-duration: var(--bit-cht-dur, 600ms);
+    animation-duration: mot-scaled-duration(var(--bit-cht-el-dur-full, var(--bit-cht-dur-full, 600ms)));
+    animation-delay: mot-scaled-delay(var(--bit-cht-el-del-full, 0ms));
     animation-timing-function: var(--bit-cht-ease, #{$mot-easing-decelerate});
 }
 
@@ -425,7 +481,8 @@
 .bit-cht-el-anim {
     transform-box: fill-box;
     animation-fill-mode: both;
-    animation-duration: var(--bit-cht-dur, 600ms);
+    animation-duration: mot-scaled-duration(var(--bit-cht-el-dur-full, var(--bit-cht-dur-full, 600ms)));
+    animation-delay: mot-scaled-delay(var(--bit-cht-el-del-full, 0ms));
     animation-timing-function: var(--bit-cht-ease, #{$mot-easing-decelerate});
 }
 
@@ -436,28 +493,21 @@
 
 .bit-cht-draw {
     stroke-dasharray: 1;
-    animation: bit-cht-draw var(--bit-cht-dur, 600ms) var(--bit-cht-ease, #{$mot-easing-decelerate}) both;
+    animation: bit-cht-draw mot-scaled-duration(var(--bit-cht-dur-full, 600ms)) var(--bit-cht-ease, #{$mot-easing-decelerate}) both;
 }
 
 .bit-cht-fade {
-    animation: bit-cht-fade var(--bit-cht-dur, 600ms) var(--bit-cht-ease, #{$mot-easing-decelerate}) both;
+    animation: bit-cht-fade mot-scaled-duration(var(--bit-cht-dur-full, 600ms)) var(--bit-cht-ease, #{$mot-easing-decelerate}) both;
 }
 
+// The keyboard position: a dashed outline traced around the data element the arrow keys have reached, while the
+// focus itself - and its ring - stays on the plot. It is a stroke rather than a box-shadow, so it is drawn in the
+// chart's focus color, the primary focus color while that is unset, and never takes the shape of a replaced
+// --bit-shd-focus-ring. The color is the stylesheet's rather than a presentation attribute's, so it reads the
+// same chain as the chart's rings and a var() in it works in every engine.
 .bit-cht-focus-ring {
+    stroke: var(--bit-cht-clr-focus, #{$clr-pri-focus});
     stroke-dasharray: 3 2;
-}
-
-// The entry animations take their duration from the chart's own options rather than from the
-// --bit-mot-duration* tokens, so they opt out of reduced motion here instead: the keyframes are taken
-// out and every element is left drawn in its final state. .bit-fam is the shared opt-out class
-// rendered by ForceAnimation, honored on an ancestor as well as on the chart itself, so opting a whole
-// subtree back in behaves the same here as it does for the token-driven animations.
-@media (prefers-reduced-motion: reduce) {
-    .bit-cht:not(.bit-fam):not(.bit-fam *) {
-        :is(.bit-cht-anim, .bit-cht-el-anim, .bit-cht-draw, .bit-cht-fade) {
-            animation: none;
-        }
-    }
 }
 
 // forced-colors: Windows High Contrast repaints every box out of the one system pair. The tooltip loses the
@@ -476,6 +526,11 @@
     .bit-cht-lgd-box,
     .bit-cht-tt-swt {
         forced-color-adjust: none;
+    }
+
+    // The keyboard position marks what the focus is on, like the Highlight outline of the rings.
+    .bit-cht-focus-ring {
+        stroke: Highlight;
     }
 
     // Both halves of the ring would be repainted one color, which leaves a turning circle that does not look

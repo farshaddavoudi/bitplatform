@@ -2,7 +2,8 @@
 @import "../../../Styles/color-role-maps.scss";
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root re-skins every
-// dialog, one set on an ancestor the dialogs inside it, and one set on the Style of an instance that one alone:
+// dialog, one set on an ancestor the dialogs inside it, and one set on the Style of an instance that one and the
+// dialogs nested in it:
 //   --bit-Dialog-z-index                   stacking order of the dialog                   (default: $zindex-modal; not read by AbsolutePosition)
 //   --bit-Dialog-margin                    space kept between the surface and its area    (default: 0, e.g. 16px for a gutter on phones)
 //   --bit-Dialog-overlay-background        color of the overlay behind the surface        (default: $clr-bg-overlay)
@@ -22,15 +23,24 @@
 //   --bit-Dialog-subtitle-color            color of the subtitle                          (default: $clr-fg-sec)
 //   --bit-Dialog-message-color             color of the message                           (default: $clr-fg-sec)
 
+$dlg-private-properties: wid, hei, mnw, mnh, mxw, mxh;
+
 .bit-dlg {
+    // What the component writes into an inline style starts out unset on every root, so an instance nested in
+    // another one never takes the outer one's value for its own; the inline declaration still wins on its element.
+    @each $name in $dlg-private-properties {
+        --bit-dlg-#{$name}: initial;
+    }
     // The color of the action buttons, defaulted to the primary role and re-pointed by the role classes
     // below. They are declared on the root rather than on the buttons so a Dialog that is given a color
-    // paints the pair of them, the spinner between them and the ring around either, from one place.
+    // paints the pair of them, the spinner between them and the ring around either, from one place. The
+    // ring's is the one left unset by default: an uncolored Dialog's buttons take the library's global
+    // focus ring (see focus-ring-own).
     --bit-dlg-clr: #{$clr-pri};
     --bit-dlg-clr-txt: #{$clr-pri-text};
     --bit-dlg-clr-hover: #{$clr-pri-hover};
     --bit-dlg-clr-active: #{$clr-pri-active};
-    --bit-dlg-clr-focus: #{$clr-pri-focus};
+    --bit-dlg-clr-focus: initial;
     --bit-dlg-clr-spn: #{$clr-pri-dark};
     inset: 0;
     width: 100%;
@@ -164,6 +174,9 @@
     --bit-dlg-radius: var(--bit-Dialog-radius, #{$shp-radius-dialog});
     --bit-dlg-pad: var(--bit-Dialog-padding, #{$spa-dialog});
     --bit-dlg-text-align: var(--bit-Dialog-text-align, #{$layout-dialog-text-align});
+    // The design system's ceiling, which the default max width the C# side emits reads. Resolved here rather
+    // than named there, since the token is computed where it is used, against the density in effect here.
+    --bit-dlg-dmw: #{$siz-dialog-max-width};
 
     // The six sizing parameters arrive as custom properties on this element, so a Dialog that was given
     // none of them keeps the shrink-to-fit box it has always had and the ones it was given are the only
@@ -385,7 +398,7 @@
         // on every other control in the library, rather than left to whatever the browser draws. The ring
         // follows the color of the Dialog, so a destructive confirmation is not ringed in the accent.
         &:focus-visible {
-            @include focus-ring(var(--bit-dlg-clr-focus));
+            @include focus-ring-own(var(--bit-dlg-clr-focus));
         }
 
         &:disabled {
@@ -403,20 +416,25 @@
 }
 
 .bit-dlg-okb {
+    --bit-dlg-okb-brd: initial;
+    --bit-dlg-okb-bg: initial;
     color: var(--bit-dlg-clr-txt);
-    border-color: var(--bit-dlg-clr);
-    background-color: var(--bit-dlg-clr);
+    border-color: var(--bit-dlg-okb-brd, var(--bit-dlg-clr));
+    background-color: var(--bit-dlg-okb-bg, var(--bit-dlg-clr));
 
+    // The states change the variables the button is painted from rather than its colors, so the one rule that
+    // paints is the one at rest: an action the app paints through Classes keeps that paint under the pointer
+    // and while it is pressed, instead of losing it to a state that outranks the app's class.
     @media (hover: hover) {
         &:hover:not(:disabled):not([aria-disabled="true"]) {
-            border-color: var(--bit-dlg-clr-hover);
-            background-color: var(--bit-dlg-clr-hover);
+            --bit-dlg-okb-brd: var(--bit-dlg-clr-hover);
+            --bit-dlg-okb-bg: var(--bit-dlg-clr-hover);
         }
     }
 
     &:active:not(:disabled):not([aria-disabled="true"]) {
-        border-color: var(--bit-dlg-clr-active);
-        background-color: var(--bit-dlg-clr-active);
+        --bit-dlg-okb-brd: var(--bit-dlg-clr-active);
+        --bit-dlg-okb-bg: var(--bit-dlg-clr-active);
     }
 }
 
@@ -425,22 +443,25 @@
 }
 
 .bit-dlg-cnb {
-    color: var(--bit-dlg-clr);
-    border-color: var(--bit-dlg-clr);
-    background-color: transparent;
+    --bit-dlg-cnb-clr: initial;
+    --bit-dlg-cnb-brd: initial;
+    --bit-dlg-cnb-bg: initial;
+    color: var(--bit-dlg-cnb-clr, var(--bit-dlg-clr));
+    border-color: var(--bit-dlg-cnb-brd, var(--bit-dlg-clr));
+    background-color: var(--bit-dlg-cnb-bg, transparent);
 
     @media (hover: hover) {
         &:hover:not(:disabled) {
-            color: var(--bit-dlg-clr-txt);
-            border-color: var(--bit-dlg-clr-hover);
-            background-color: var(--bit-dlg-clr-hover);
+            --bit-dlg-cnb-clr: var(--bit-dlg-clr-txt);
+            --bit-dlg-cnb-brd: var(--bit-dlg-clr-hover);
+            --bit-dlg-cnb-bg: var(--bit-dlg-clr-hover);
         }
     }
 
     &:active:not(:disabled) {
-        color: var(--bit-dlg-clr-txt);
-        border-color: var(--bit-dlg-clr-active);
-        background-color: var(--bit-dlg-clr-active);
+        --bit-dlg-cnb-clr: var(--bit-dlg-clr-txt);
+        --bit-dlg-cnb-brd: var(--bit-dlg-clr-active);
+        --bit-dlg-cnb-bg: var(--bit-dlg-clr-active);
     }
 }
 
@@ -482,8 +503,10 @@
     padding: 0 spacing(0.5);
     font-size: $tg-fs-sm;
     border-radius: $shp-radius-control;
-    background-color: transparent;
-    color: inherit;
+    --bit-dlg-cls-bg: initial;
+    --bit-dlg-cls-clr: initial;
+    background-color: var(--bit-dlg-cls-bg, transparent);
+    color: var(--bit-dlg-cls-clr, inherit);
     transition: background-color $mot-duration-short $mot-easing, color $mot-duration-short $mot-easing;
 
     span {
@@ -500,14 +523,14 @@
 
     @media (hover: hover) {
         &:hover:not(:disabled) {
-            color: $clr-fg-pri-hover;
-            background-color: $clr-bg-pri-hover;
+            --bit-dlg-cls-clr: #{$clr-fg-pri-hover};
+            --bit-dlg-cls-bg: #{$clr-bg-pri-hover};
         }
     }
 
     &:active:not(:disabled) {
-        color: $clr-fg-pri-active;
-        background-color: $clr-bg-pri-active;
+        --bit-dlg-cls-clr: #{$clr-fg-pri-active};
+        --bit-dlg-cls-bg: #{$clr-bg-pri-active};
     }
 
     &:focus-visible {
@@ -577,19 +600,14 @@
 
 // flex-start and flex-end follow the inline direction, which an RTL Dialog reverses - so left would
 // come out on the right. The physical positions are put back onto their own side here, leaving the
-// start/end pair above as the only ones that move with the reading direction.
-.bit-dlg.bit-rtl {
-    .bit-dlg-tl,
-    .bit-dlg-cl,
-    .bit-dlg-bl {
-        justify-content: flex-end;
-    }
+// start/end pair above as the only ones that move with the reading direction - the one the document is laid out
+// in, whatever made it right to left, with the class an explicit Dir renders for an engine without :dir().
+.bit-dlg-doc:is(.bit-dlg-tl, .bit-dlg-cl, .bit-dlg-bl):is(:dir(rtl), .bit-dlg.bit-rtl > *) {
+    justify-content: flex-end;
+}
 
-    .bit-dlg-tr,
-    .bit-dlg-cr,
-    .bit-dlg-br {
-        justify-content: flex-start;
-    }
+.bit-dlg-doc:is(.bit-dlg-tr, .bit-dlg-cr, .bit-dlg-br):is(:dir(rtl), .bit-dlg.bit-rtl > *) {
+    justify-content: flex-start;
 }
 
 
@@ -597,9 +615,10 @@
 // prefers-reduced-motion its duration collapses to nothing - which would leave the gesture unanswered for
 // exactly the readers least able to guess why. The surface is ringed in the Dialog's own color for as long
 // as the class is on it instead, which says the same thing without moving anything. It overrides the
-// outline:none the surface carries because it comes later, at the same specificity.
+// outline:none the surface carries because it comes later, at the same specificity. A Dialog asked to animate
+// regardless (ForceAnimation, or inside a subtree that is) keeps its shake, and so needs no ring.
 @media (prefers-reduced-motion: reduce) {
-    .bit-dlg-prv {
+    .bit-dlg-prv:not(.bit-fam):not(.bit-fam *) {
         outline: $shp-border-width-thick $shp-border-style var(--bit-dlg-clr);
         outline-offset: calc(-1 * #{$shp-border-width-thick});
     }
@@ -625,5 +644,50 @@
     .bit-dlg-spn {
         border-color: GrayText;
         border-top-color: Highlight;
+    }
+
+    // The two actions are painted as native buttons. The Ok button is a fill of the Dialog's color under its
+    // on-color - LinkText under Canvas for the primary role - and Chromium draws a Canvas backplate behind every
+    // line of text, so its label would be Canvas on Canvas; the Cancel button reads its label from the Dialog's
+    // color, which for a background role is Canvas itself. ButtonText on ButtonFace reads with the backplate and
+    // without it (Firefox draws none).
+    .bit-dlg-okb {
+        color: ButtonText;
+        border-color: ButtonText;
+        background-color: ButtonFace;
+    }
+
+    .bit-dlg-cnb {
+        color: ButtonText;
+        border-color: ButtonText;
+    }
+
+    // The pointer states move the variables the actions are painted from to the role's hover and press fills, the
+    // very pair the backplate hides. The rules above paint over the ones the Ok button reads; the Cancel button's
+    // fill is still read from its variable, so that one is set back here. Either way the state is carried by the
+    // system Highlight on the border instead. The selectors are the ones of the rules they undo, which this block
+    // follows at the same weight.
+    .bit-dlg-okb:hover:not(:disabled):not([aria-disabled="true"]),
+    .bit-dlg-okb:active:not(:disabled):not([aria-disabled="true"]) {
+        border-color: Highlight;
+    }
+
+    .bit-dlg-cnb:hover:not(:disabled),
+    .bit-dlg-cnb:active:not(:disabled) {
+        --bit-dlg-cnb-bg: initial;
+        border-color: Highlight;
+    }
+
+    // An unavailable action goes GrayText. Keyed on both forms of the state: the Ok button waiting on its callback
+    // is held shut through aria-disabled alone, to keep the focus on it, and is as unavailable as a disabled one.
+    // The dimming of a disabled one is dropped, as it would only weaken a color the user chose for clarity; the
+    // container is named so this outranks the rule that dims it.
+    .bit-dlg-bct .bit-dlg-okb:disabled,
+    .bit-dlg-bct .bit-dlg-okb[aria-disabled="true"],
+    .bit-dlg-bct .bit-dlg-cnb:disabled,
+    .bit-dlg-bct .bit-dlg-cnb[aria-disabled="true"] {
+        opacity: 1;
+        color: GrayText;
+        border-color: GrayText;
     }
 }

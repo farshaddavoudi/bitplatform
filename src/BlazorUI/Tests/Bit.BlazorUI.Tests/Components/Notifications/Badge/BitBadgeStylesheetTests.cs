@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -23,7 +24,11 @@ public partial class BitBadgeStylesheetTests
 
         foreach (var name in documented)
         {
-            StringAssert.Contains(stylesheet, $"var({name}, ", $"{name} is documented but never read with a fallback.");
+            // The focus color alone is read without a fallback, on purpose: its absence is what hands the ring over
+            // to the global --bit-shd-focus-ring (see BitFocusRingStylesheetTests).
+            var read = name.EndsWith("-focus-color", StringComparison.Ordinal) ? $"var({name})" : $"var({name}, ";
+
+            StringAssert.Contains(stylesheet, read, $"{name} is documented but never read as it should be.");
         }
     }
 
@@ -66,8 +71,10 @@ public partial class BitBadgeStylesheetTests
         // so a re-tinted badge that is disabled still reads as disabled, while the rule painting it keeps the weight
         // of a single class a Classes.Badge class can compete with.
         StringAssert.Contains(stylesheet, "color: var(--bit-bdg-dis-txt, var(--bit-bdg-cnt-clr-txt));");
-        StringAssert.Contains(stylesheet, "background-color: var(--bit-bdg-dis-bg, var(--bit-bdg-cnt-clr-bg));");
-        StringAssert.Contains(stylesheet, "border-color: var(--bit-bdg-dis-brd, var(--bit-bdg-cnt-clr-brd));");
+        // The hover and press of a clickable badge only move a variable read between the two, so a Classes.Badge
+        // class painting the badge keeps that paint under the pointer.
+        StringAssert.Contains(stylesheet, "background-color: var(--bit-bdg-dis-bg, var(--bit-bdg-cnt-sbg, var(--bit-bdg-cnt-clr-bg)));");
+        StringAssert.Contains(stylesheet, "border-color: var(--bit-bdg-dis-brd, var(--bit-bdg-cnt-sbr, var(--bit-bdg-cnt-clr-brd)));");
         Assert.IsFalse(stylesheet.Contains("\n.bit-bdg.bit-dis .bit-bdg-ctn {"), "The disabled colors are set by a heavier rule of their own.");
     }
 
@@ -140,12 +147,36 @@ public partial class BitBadgeStylesheetTests
         StringAssert.Contains(stylesheet, "var(--bit-bdg-dotsize, var(--bit-Badge-dot-size, #{$siz-badge-dot-md}))");
 
         // So does an explicit Color, for every color it paints.
-        StringAssert.Contains(stylesheet, "--bit-bdg-cnt-clr-bg: var(--bit-bdg-clr, var(--bit-Badge-background, #{$clr-pri}));");
-        StringAssert.Contains(stylesheet, "--bit-bdg-cnt-clr-txt: var(--bit-bdg-clr-txt, var(--bit-Badge-color, #{$clr-pri-text}));");
-        StringAssert.Contains(stylesheet, "var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color, #{$clr-pri-focus}))");
+        StringAssert.Contains(stylesheet, "--bit-bdg-cnt-clr-bg: var(--bit-bdg-clr, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri})));");
+        StringAssert.Contains(stylesheet, "--bit-bdg-cnt-clr-txt: var(--bit-bdg-clr-txt, var(--bit-Badge-fill-color, var(--bit-Badge-color, #{$clr-pri-text})));");
+        StringAssert.Contains(stylesheet, "focus-ring-own(var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color)))");
         StringAssert.Contains(stylesheet, "var(--bit-bdg-clr, var(--bit-Badge-pulse-color, #{$clr-pri}))");
 
         Assert.IsFalse(Regex.IsMatch(stylesheet, @"var\(--bit-Badge-[a-z-]+, var\(--bit-bdg-"), "A public variable is read before the parameter it restyles the default of.");
+    }
+
+    [TestMethod,
+        DataRow("fill", ".bit-bdg-fil"),
+        DataRow("outline", ".bit-bdg-otl"),
+        DataRow("text", ".bit-bdg-txt")]
+    public void BitBadgeShouldReadTheVariablesOfItsVariantAheadOfTheSharedOnes(string variant, string selector)
+    {
+        var stylesheet = ReadStylesheet();
+        var block = SourceFiles.GetScssBlock(stylesheet, $"\n{selector} {{");
+
+        // Each variant reads a tier of its own ahead of every shared color variable, so a theme can set one look apart
+        // from the other two on :root - an outline badge's neutral border without a ring around every filled one.
+        foreach (var name in new[] { "color", "background", "border-color", "hover-background", "active-background" })
+        {
+            StringAssert.Contains(block, $"var(--bit-Badge-{variant}-{name}, var(--bit-Badge-{name}, ",
+                                  $"{selector} does not read --bit-Badge-{variant}-{name} ahead of --bit-Badge-{name}.");
+        }
+
+        // A variant reads a shared color variable only right behind its own twin, and never the tier of another variant.
+        Assert.IsFalse(Regex.IsMatch(block, $@"(?<!var\(--bit-Badge-{variant}-[a-z-]+, )var\(--bit-Badge-(?:hover-|active-)?(?:color|background|border-color)\b"),
+                       $"{selector} reads a shared color variable without its own tier ahead of it.");
+        Assert.IsFalse(Regex.IsMatch(block, $@"var\(--bit-Badge-(?!{variant}-)(?:fill|outline|text)-"),
+                       $"{selector} reads the variables of another variant.");
     }
 
     [TestMethod]
@@ -183,7 +214,7 @@ public partial class BitBadgeStylesheetTests
         return DocumentedVariable().Matches(stylesheet).Select(m => m.Groups[1].Value).Distinct().ToArray();
     }
 
-    private static string ReadStylesheet() => SourceFiles.Read("Bit.BlazorUI", "Components", "Notifications", "Badge", "BitBadge.scss");
+    private static string ReadStylesheet() => SourceFiles.ReadStylesheet("Bit.BlazorUI", "Components", "Notifications", "Badge", "BitBadge.scss");
 
     [GeneratedRegex(@"^//\s+(--bit-Badge-[a-z-]+)\s", RegexOptions.Multiline)]
     private static partial Regex DocumentedVariable();

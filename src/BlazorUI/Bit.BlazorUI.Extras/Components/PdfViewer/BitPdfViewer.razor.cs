@@ -24,6 +24,7 @@ public partial class BitPdfViewer : BitComponentBase
     private bool _correctWidthsPending; // run the JS text width-correction after render
     private string?[]? _pageText; // lazily-built per-page text index for search
     private int _loadVersion; // bumped per load; guards against a superseded load committing
+    private int _loadedVersion; // the last load that published its document (OnDocumentLoaded is owed to it)
     private int _renderEpoch; // bumped whenever page slots are rebuilt (load, rotation, mode change)
     private string _status = string.Empty;
     private bool _loading;
@@ -781,6 +782,20 @@ public partial class BitPdfViewer : BitComponentBase
     /// </summary>
     public byte[]? GetBytes() => _bytes;
 
+    // The conditions the toolbar's controls are disabled by, each read by both the disabled and the aria-disabled
+    // attribute of every control it disables.
+    private bool NoPages => _pages.Count == 0;
+
+    private bool OnFirstPage => CurrentPage <= 1;
+
+    private bool OnLastPage => CurrentPage >= _pages.Count;
+
+    private bool NoSearchMatches => _searchTotal <= 0;
+
+    private bool DownloadDisabled => _bytes is null || CanDownload is false;
+
+    private bool PrintDisabled => _pages.Count == 0 || CanPrint is false;
+
     /// <summary>
     /// Navigates to the next page.
     /// </summary>
@@ -1175,6 +1190,7 @@ public partial class BitPdfViewer : BitComponentBase
         _appliedPage = CurrentPage;
         _textCoalescing = TextCoalescing;
         _renderMode = RenderMode;
+        int version = _loadVersion + 1; // the version LoadAsync claims as it starts
         await LoadAsync();
         if (IsDisposed) return;
 
@@ -1186,6 +1202,14 @@ public partial class BitPdfViewer : BitComponentBase
             _appliedPage = CurrentPage;
         }
         AnnouncePage();
+
+        // Only now is the load over in every respect: the loading state is cleared and
+        // the requested page is in place, so a handler acting on the viewer - its pages,
+        // its toolbar, its current page - sees the loaded document, never the loading one.
+        // Owed only by the load that published its document and has not been superseded
+        // (by a newer Source, possibly one the GoToPage above awaited long enough for).
+        if (IsDisposed || _loadedVersion != version || _loadVersion != version) return;
+        await OnDocumentLoaded.InvokeAsync();
     }
 
     /// <summary>Reads the file the reader picked with the toolbar's open-file button.
@@ -1786,7 +1810,8 @@ public partial class BitPdfViewer : BitComponentBase
     /// shortcut listener is off whenever <see cref="EnableKeyboardShortcuts"/> is.</summary>
     private void OnPasswordDialogKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape")
+        // Only the plain key, the one the dialog claims: an Escape with a modifier is the surrounding surface's.
+        if (e.IsPlainEscape())
         {
             CancelPassword();
         }
@@ -1797,7 +1822,8 @@ public partial class BitPdfViewer : BitComponentBase
     /// and a modal must always be closable from the keyboard.</summary>
     private void OnPropertiesKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape")
+        // Only the plain key, the one the dialog claims: an Escape with a modifier is the surrounding surface's.
+        if (e.IsPlainEscape())
         {
             _showProperties = false;
         }
@@ -1811,7 +1837,9 @@ public partial class BitPdfViewer : BitComponentBase
         {
             SubmitPassword();
         }
-        else if (e.Key == "Escape")
+        // Only the plain key, the one the dialog around the box claims: an Escape with a modifier is the
+        // surrounding surface's.
+        else if (e.IsPlainEscape())
         {
             CancelPassword();
         }
@@ -2100,6 +2128,16 @@ public partial class BitPdfViewer : BitComponentBase
         }
         StateHasChanged(); // the toolbar button reports the state it just entered/left
     }
+
+    // Whether the shortcut listener's Escape does anything (see the "escape" case of OnShortcut): the script forwards
+    // it from anywhere in the root without preventing its default, so the root claims it in its markup instead (see
+    // Utils.claimEscape) - read off the same state OnShortcut decides on, and only while the listener is attached and
+    // the viewer is enabled, so a dialog around the viewer stays open on the press that closes the properties or the
+    // find box or leaves presentation mode, and closes on any other.
+    private string? EscapeClaim => EnableKeyboardShortcuts && _keyboardAttached && Disabled is false
+                                   && (_showProperties || _showSearch || _presenting)
+                                   ? "claim"
+                                   : null;
 
     /// <summary>
     /// Invoked from JavaScript for a keyboard shortcut. The key matching (and the
@@ -2763,6 +2801,14 @@ public partial class BitPdfViewer : BitComponentBase
         // password nobody is waiting for.
         CompletePasswordRequest(null);
 
+        // A new document is on its way: the viewer is busy from here on, not only once the gate
+        // below is ours. A background page build holding the gate would otherwise leave the old
+        // document's pages on show as a finished load until it lets go.
+        if (_source is not null)
+        {
+            _loading = true;
+        }
+
         // Reset the shared state under the render gate so an in-flight background
         // build (which reads _document and lazily (re)creates _fontStore) cannot
         // repopulate these fields after we clear them.
@@ -2991,7 +3037,8 @@ public partial class BitPdfViewer : BitComponentBase
                 // don't announce a superseded document as loaded.
                 if (IsDisposed || version != _loadVersion) return;
             }
-            await OnDocumentLoaded.InvokeAsync();
+            // OnDocumentLoaded is raised by OpenCoreAsync once the load is over in every respect.
+            _loadedVersion = version;
         }
         catch (Exception ex)
         {
@@ -3964,7 +4011,8 @@ public partial class BitPdfViewer : BitComponentBase
                 await (e.ShiftKey ? SearchPrev() : SearchNext());
             }
         }
-        else if (e.Key == "Escape")
+        // Only the plain key, the one the box claims: an Escape with a modifier is the surrounding surface's.
+        else if (e.IsPlainEscape())
         {
             await CloseSearch();
             // The box held the focus and is about to leave the DOM, which would drop

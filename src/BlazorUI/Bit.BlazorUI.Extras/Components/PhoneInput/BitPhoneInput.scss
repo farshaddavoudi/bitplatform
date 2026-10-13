@@ -2,16 +2,16 @@
 @import '../../../Bit.BlazorUI/Styles/media-queries.scss';
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root re-skins every
-// phone input and one set on the Style of an instance (or through Styles.Root) re-skins that one alone.
-// The callout and the overlay are rendered beside the root element and relocated to the body while the callout
-// is open; Callouts.ts carries what the root and its ancestors declare into them, so a variable set on an
+// phone input and one set on the Style of an instance (or through Styles.Root) re-skins that one and the phone inputs
+// nested in it. The callout and the overlay are rendered beside the root element and relocated to the body while the
+// callout is open; Callouts.ts carries what the root and its ancestors declare into them, so a variable set on an
 // ancestor or through its class, in Style or in Styles.Root reaches them like any inherited value.
 //
 //   FIELD
 //   --bit-PhoneInput-background              fill of the field                        (default: $clr-bg-pri)
 //   --bit-PhoneInput-color                   text of the number                       (default: $clr-fg-pri)
 //   --bit-PhoneInput-placeholder-color       placeholder of the number input, of the
-//                                            selector and of the search box           (default: $clr-fg-ter)
+//                                            selector and of the search box           (default: $clr-fg-sec)
 //   --bit-PhoneInput-border-color            frame at rest                            (default: $clr-brd-pri)
 //   --bit-PhoneInput-hover-border-color      frame under a pointer                    (default: $clr-brd-pri-hover)
 //   --bit-PhoneInput-border-width            thickness of the frame                   (default: $shp-border-width)
@@ -90,6 +90,11 @@
     --bit-phi-sz-itm-h: #{$itm-h};
 }
 
+// Every private variable the mixin below starts out unset, so an instance never inherits one from an instance
+// it is nested in. A private variable added to the component goes in this list.
+$phi-private-properties: sz-fs, sz-h, sz-pad, sz-icon, sz-itm-h, role-main, role-focus, kind-bg, kind-brd,
+                         kind-brd-hover;
+
 // The values the Size, Color, Background and Border classes publish start out unset on the root and on the
 // callout, so a field rendered inside another one's template never inherits the outer field's choice; the
 // classes - declared further down at the same weight - still win on the element that carries them. Left
@@ -97,16 +102,9 @@
 // medium size, the primary role, the primary background and border), which is what lets an explicit parameter
 // outrank the variable while an unset one leaves the variable in charge.
 @mixin phi-resets {
-    --bit-phi-sz-fs: initial;
-    --bit-phi-sz-h: initial;
-    --bit-phi-sz-pad: initial;
-    --bit-phi-sz-icon: initial;
-    --bit-phi-sz-itm-h: initial;
-    --bit-phi-role-main: initial;
-    --bit-phi-role-focus: initial;
-    --bit-phi-kind-bg: initial;
-    --bit-phi-kind-brd: initial;
-    --bit-phi-kind-brd-hover: initial;
+    @each $name in $phi-private-properties {
+        --bit-phi-#{$name}: initial;
+    }
 }
 
 // The one place the public variables meet the parameters and the defaults: the value an explicit parameter
@@ -128,8 +126,8 @@
     --bit-phi-bg: var(--bit-phi-kind-bg, var(--bit-PhoneInput-background, #{$clr-bg-pri}));
     --bit-phi-brd: var(--bit-phi-kind-brd, var(--bit-phi-role-main, var(--bit-PhoneInput-border-color, #{$clr-brd-pri})));
     --bit-phi-brd-hover: var(--bit-phi-kind-brd-hover, var(--bit-phi-role-main, var(--bit-PhoneInput-hover-border-color, #{$clr-brd-pri-hover})));
-    --bit-phi-focus: var(--bit-phi-role-focus, var(--bit-PhoneInput-focus-color, #{$clr-pri-focus}));
-    --bit-phi-plc: var(--bit-PhoneInput-placeholder-color, #{$clr-fg-ter});
+    --bit-phi-focus: var(--bit-phi-role-focus, var(--bit-PhoneInput-focus-color));
+    --bit-phi-plc: var(--bit-PhoneInput-placeholder-color, #{$clr-fg-sec});
     --bit-phi-itm-clr: var(--bit-PhoneInput-item-color, #{$clr-fg-pri});
     --bit-phi-itm-hover-bg: var(--bit-PhoneInput-item-hover-background, #{$clr-bg-pri-hover});
 }
@@ -140,12 +138,7 @@
 // the box-shadow the ring of the whole field is drawn with. The library resets the outline of every button,
 // so without it the two halves of the field would share one ring with nothing saying which of them has focus.
 @mixin phi-focus-inset {
-    outline: $shp-focus-ring-width $shp-border-style var(--bit-phi-focus);
-    outline-offset: calc(-1 * #{$shp-focus-ring-width});
-
-    @media (forced-colors: active) {
-        outline-color: Highlight;
-    }
+    @include focus-ring-inset(var(--bit-phi-focus, #{$clr-pri-focus}));
 }
 
 // A hover cue is drawn on a device that can hover only: on a touch screen it would stick to whatever was
@@ -204,12 +197,12 @@
 }
 
 .bit-phi-fcs .bit-phi-fgp {
-    @include focus-ring(var(--bit-phi-focus));
+    @include focus-ring-own(var(--bit-phi-focus));
 
-    border-color: var(--bit-phi-focus);
+    border-color: var(--bit-phi-focus, #{$clr-pri-focus});
 
     @include phi-hover {
-        border-color: var(--bit-phi-focus);
+        border-color: var(--bit-phi-focus, #{$clr-pri-focus});
     }
 }
 
@@ -317,9 +310,7 @@
     border-start-end-radius: var(--bit-phi-radius);
     border-end-end-radius: var(--bit-phi-radius);
 
-    &::placeholder {
-        color: var(--bit-phi-plc);
-    }
+    @include input-placeholder(var(--bit-phi-plc));
 
     &:disabled {
         cursor: default;
@@ -384,8 +375,8 @@
         opacity: $opa-dis;
     }
 
-    .bit-phi-inp::placeholder {
-        color: var(--bit-PhoneInput-disabled-color, #{$clr-fg-dis});
+    .bit-phi-inp {
+        @include input-placeholder(var(--bit-PhoneInput-disabled-color, #{$clr-fg-dis}));
     }
 }
 
@@ -468,10 +459,7 @@
     color: var(--bit-phi-itm-clr);
     letter-spacing: $tg-ctrl-letter-spacing;
     padding: spacing(1) spacing(1.5);
-
-    &::placeholder {
-        color: var(--bit-phi-plc);
-    }
+    @include input-placeholder(var(--bit-phi-plc));
 }
 
 .bit-phi-scn {
@@ -563,20 +551,24 @@
     display: none;
 }
 
+// The label again, at the top of the responsive panel: it reads the same size as the one above the field (an
+// explicit Size first, then the label and font variables), which phi-vars resolves on the callout as on the root.
 .bit-phi-rlb {
     display: block;
     box-sizing: border-box;
-    font-size: $tg-fs-sm;
+    font-size: var(--bit-phi-lbl-fs);
     letter-spacing: $tg-ctrl-letter-spacing;
     color: var(--bit-PhoneInput-label-color, #{$clr-fg-pri});
     font-weight: var(--bit-PhoneInput-label-font-weight, #{$tg-field-label-font-weight});
 }
 
+// Rendered after the search box so it follows it in the tab order, and drawn back at the end of the header from
+// there (see .bit-phi-res); hidden with the header wherever the list is not a panel.
 .bit-phi-cls {
     margin: 0;
     padding: 0;
     border: none;
-    display: flex;
+    display: none;
     cursor: pointer;
     appearance: none;
     align-items: center;
@@ -587,7 +579,6 @@
     width: $siz-ctrl-md;
     height: $siz-ctrl-md;
     font-size: $siz-icon-md;
-    margin-inline-start: auto;
     border-radius: $shp-radius-button;
 
     @include phi-hover {
@@ -620,6 +611,15 @@
             align-items: center;
             box-sizing: border-box;
             padding: spacing(1.5) spacing(1.5);
+            min-height: calc(#{$siz-ctrl-md} + #{spacing(3)});
+            padding-inline-end: calc(#{$siz-ctrl-md} + #{spacing(2.5)});
+        }
+
+        .bit-phi-cls {
+            display: flex;
+            position: absolute;
+            top: spacing(1.5);
+            inset-inline-end: spacing(1.5);
         }
 
         .bit-phi-scn {
@@ -629,7 +629,10 @@
     }
 }
 
-.bit-phi-res.bit-phi-rtl {
+// The panel is pinned to and slides in from the side the layout ends on, which is the left one under a
+// right-to-left direction - the explicit Dir (the bit-rtl class the callout carries for it, for an engine without
+// :dir()) or the one the page reads in.
+.bit-phi-res:is(.bit-rtl, :dir(rtl)) {
     @include lt-sm {
         left: 0;
         right: unset;
@@ -706,10 +709,21 @@
 
 // A phone number is written left to right wherever it is read, and the separators a mask inserts
 // ("(415) 555-0123") are neutral characters that a right-to-left paragraph would otherwise reorder
-// around the digits. The box itself stays on the right hand side of a right-to-left field.
-.bit-phi[dir="rtl"] .bit-phi-inp {
+// around the digits. The box itself stays on the right hand side of a right-to-left field - whatever made
+// it one: its Dir, the page's direction or its content's (Auto). The direction is read off the group the
+// input sits in: an input of type tel with no dir of its own is left to right by definition, so :dir()
+// never finds it right to left.
+.bit-phi-fgp:dir(rtl) > .bit-phi-inp {
     direction: ltr;
     text-align: right;
+}
+
+// An engine without :dir() is left with the dir attribute an explicit Dir renders on the field.
+@supports not selector(:dir(rtl)) {
+    .bit-phi[dir="rtl"] > .bit-phi-fgp > .bit-phi-inp {
+        direction: ltr;
+        text-align: right;
+    }
 }
 
 .bit-phi-req {

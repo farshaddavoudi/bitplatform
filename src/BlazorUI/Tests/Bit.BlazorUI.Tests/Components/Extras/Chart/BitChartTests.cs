@@ -501,6 +501,62 @@ public class BitChartTests : BunitTestContext
     }
 
     [TestMethod]
+    public void ThePlotShouldClaimEscapeOnlyWhileTheKeyboardPositionIsSet()
+    {
+        var component = RenderChart();
+
+        Assert.IsNull(component.Find("svg").GetAttribute("data-bit-esc"), "with nothing to let go of, the press is left to what the chart sits in");
+
+        component.Find("svg").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+        Assert.AreEqual("claim", component.Find("svg").GetAttribute("data-bit-esc"));
+
+        component.Find("svg").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.IsNull(component.Find("svg").GetAttribute("data-bit-esc"));
+    }
+
+    [TestMethod]
+    public void ThePlotShouldClaimEscapeWhileAPointerTooltipIsShown()
+    {
+        var component = RenderChart();
+
+        component.FindAll(".bit-cht-data > g")[0].MouseEnter();
+        Assert.AreEqual("claim", component.Find("svg").GetAttribute("data-bit-esc"));
+
+        component.Find("svg").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.AreEqual(0, component.FindAll(".bit-cht-tt").Count);
+        Assert.IsNull(component.Find("svg").GetAttribute("data-bit-esc"));
+    }
+
+    [TestMethod]
+    public void AModifiedEscapeShouldLetGoOfNothing()
+    {
+        // Only the plain key is claimed, so only the plain key acts: one with a modifier is the surrounding surface's.
+        var component = RenderChart();
+        var svg = component.Find("svg");
+
+        svg.KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+        svg.KeyDown(new KeyboardEventArgs { Key = "Escape", ShiftKey = true });
+
+        Assert.AreEqual(1, component.FindAll(".bit-cht-focus-ring").Count);
+        StringAssert.Contains(component.Find("[role=status]").TextContent, "Jan");
+        Assert.AreEqual("claim", component.Find("svg").GetAttribute("data-bit-esc"));
+    }
+
+    [TestMethod]
+    public void ADisabledPlotShouldNotClaimEscape()
+    {
+        var component = RenderComponent<BitChart>(p =>
+        {
+            p.Add(c => c.Data, TwoSeries());
+            p.Add(c => c.Disabled, true);
+        });
+
+        component.Find("svg").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        Assert.IsNull(component.Find("svg").GetAttribute("data-bit-esc"));
+    }
+
+    [TestMethod]
     public void EndKeyShouldJumpToTheLastElement()
     {
         var component = RenderChart();
@@ -860,27 +916,36 @@ public class BitChartTests : BunitTestContext
 
     // ---- title placement ----
 
-    [TestMethod]
-    public void ASideTitleShouldRenderBesideThePlot()
+    [DataTestMethod]
+    [DataRow(BitPlacement.Left, "bit-cht-lft")]
+    [DataRow(BitPlacement.Right, "bit-cht-rgt")]
+    [DataRow(BitPlacement.Start, "bit-cht-sta")]
+    [DataRow(BitPlacement.End, "bit-cht-end")]
+    public void ASideTitleShouldRenderBesideThePlot(BitPlacement placement, string sideClass)
     {
         var options = new BitChartOptions
         {
-            Plugins = { Title = { Display = true, Text = "Down the side", Placement = BitPlacement.Left } }
+            Plugins = { Title = { Display = true, Text = "Down the side", Placement = placement } }
         };
         var component = RenderChart(options: options);
 
         var title = component.Find(".bit-cht-mid > .bit-cht-ttl");
         Assert.IsTrue(title.ClassList.Contains("bit-cht-ttl-v"));
+        Assert.IsTrue(title.ClassList.Contains(sideClass));
         StringAssert.Contains(title.TextContent, "Down the side");
     }
 
     // A subtitle goes wherever a title can - beside the plot it sits between the title and the plot, on either
-    // side - and the ones on the left are the ones turned over, by a class of their own rather than by being the
-    // first child, which only the outermost of them is.
+    // side. Both carry the class of their side rather than leaning on being the first child, which only the outermost
+    // of them is: it is what moves them in the row and turns over the ones on the left (Left, and Start in a
+    // left-to-right chart), which BitChartStylesheetTests pins and BitDirFallbackBrowserTests reads off the screen.
+    // The reading start and end are written where a left-to-right chart shows them.
     [DataTestMethod]
-    [DataRow(BitPlacement.Left, true)]
-    [DataRow(BitPlacement.Right, false)]
-    public void ASideSubtitleShouldRenderBesideThePlot(BitPlacement placement, bool turnedOver)
+    [DataRow(BitPlacement.Left, "bit-cht-lft", true)]
+    [DataRow(BitPlacement.Right, "bit-cht-rgt", false)]
+    [DataRow(BitPlacement.Start, "bit-cht-sta", true)]
+    [DataRow(BitPlacement.End, "bit-cht-end", false)]
+    public void ASideSubtitleShouldRenderBesideThePlot(BitPlacement placement, string sideClass, bool beforeThePlot)
     {
         var options = new BitChartOptions
         {
@@ -896,13 +961,14 @@ public class BitChartTests : BunitTestContext
         var subtitle = component.Find(".bit-cht-mid > .bit-cht-sub");
         Assert.IsTrue(subtitle.ClassList.Contains("bit-cht-ttl-v"));
         Assert.AreEqual("Sub", subtitle.TextContent.Trim());
-        Assert.AreEqual(turnedOver, title.ClassList.Contains("bit-cht-ttl-l"));
-        Assert.AreEqual(turnedOver, subtitle.ClassList.Contains("bit-cht-ttl-l"));
+        string[] sideClasses = ["bit-cht-lft", "bit-cht-rgt", "bit-cht-sta", "bit-cht-end"];
+        CollectionAssert.AreEqual(new[] { sideClass }, sideClasses.Where(title.ClassList.Contains).ToArray());
+        CollectionAssert.AreEqual(new[] { sideClass }, sideClasses.Where(subtitle.ClassList.Contains).ToArray());
 
         var order = component.Find(".bit-cht-mid").Children
                              .Select(c => c.ClassList.Contains("bit-cht-plot") ? "plot" : c.ClassList.Contains("bit-cht-sub") ? "sub" : "title")
                              .ToArray();
-        CollectionAssert.AreEqual(turnedOver ? new[] { "title", "sub", "plot" } : new[] { "plot", "sub", "title" }, order);
+        CollectionAssert.AreEqual(beforeThePlot ? new[] { "title", "sub", "plot" } : new[] { "plot", "sub", "title" }, order);
     }
 
     [TestMethod]
@@ -923,23 +989,26 @@ public class BitChartTests : BunitTestContext
     private IRenderedComponent<BitChart> RenderLegendAt(BitPlacement placement)
         => RenderChart(options: new BitChartOptions { Plugins = { Legend = { Placement = placement } } });
 
+    // The reading start and end are sides of their own (#13714), named apart from the physical left and right since
+    // only they follow the reading direction.
     [TestMethod]
-    [DataRow(BitPlacement.Left)]
-    [DataRow(BitPlacement.Right)]
-    public void AnInlineLegendShouldRenderBesideThePlotAndStackItsItems(BitPlacement placement)
+    [DataRow(BitPlacement.Left, "bit-cht-lft")]
+    [DataRow(BitPlacement.Right, "bit-cht-rgt")]
+    [DataRow(BitPlacement.Start, "bit-cht-sta")]
+    [DataRow(BitPlacement.End, "bit-cht-end")]
+    public void AnInlineLegendShouldRenderBesideThePlotAndStackItsItems(BitPlacement placement, string sideClass)
     {
         var legend = RenderLegendAt(placement).Find(".bit-cht-mid > .bit-cht-lgd");
 
         Assert.IsTrue(legend.ClassList.Contains("bit-cht-lgd-v"));
+        Assert.IsTrue(legend.ClassList.Contains(sideClass));
     }
 
     [TestMethod]
     [DataRow(BitPlacement.Top)]
     [DataRow(BitPlacement.Bottom)]
-    // A chart is laid out physically, so the logical pair, the two combined values and Center have no edge of
-    // their own here: they leave the legend where an unset placement would, at the top, rather than dropping it.
-    [DataRow(BitPlacement.Start)]
-    [DataRow(BitPlacement.End)]
+    // The two combined values and Center have no edge of their own here: they leave the legend where an unset
+    // placement would, at the top, rather than dropping it.
     [DataRow(BitPlacement.Center)]
     [DataRow(BitPlacement.TopAndBottom)]
     [DataRow(BitPlacement.StartAndEnd)]
@@ -1736,13 +1805,13 @@ public class BitChartTests : BunitTestContext
     }
 
     [TestMethod]
-    public void TheFocusRingShouldReadThePublicFocusVariable()
+    public void TheFocusRingShouldLeaveItsColorToTheStylesheet()
     {
+        // .bit-cht-focus-ring paints it in the chart's focus color, which a presentation attribute would only shadow.
         var component = RenderChart();
         component.Find("svg").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
 
-        Assert.AreEqual("var(--bit-Chart-focus-color, var(--bit-clr-pri-focus))",
-            component.Find(".bit-cht-focus-ring").GetAttribute("stroke"));
+        Assert.IsNull(component.Find(".bit-cht-focus-ring").GetAttribute("stroke"));
     }
 
     // ---- sparkline ----

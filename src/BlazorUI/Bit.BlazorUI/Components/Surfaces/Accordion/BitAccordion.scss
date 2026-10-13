@@ -35,6 +35,12 @@
 // carried the default would be indistinguishable from one that was asked for. NoBorder asks for no fill in
 // particular, so the variables still win over the secondary fill it falls back to; an open header's own fill
 // (--bit-Accordion-header-expanded-background) is a state of its own and wins over the shades of any Background.
+
+$acd-private-properties:
+    pad, ttl-fontsize, fontsize, icn-fontsize,
+    // What the component writes into an inline style, which wins over this on the element it is written on.
+    max-h;
+
 .bit-acd {
     width: 100%;
     display: flex;
@@ -66,23 +72,24 @@
     // The values the Size classes publish, unset here - rather than inherited from an accordion this one sits in the
     // panel of - and won back by those classes, declared further down at the same weight, on the root that carries
     // them. Left unset, each sends the var() reading it on to the public variable and then to the medium size.
-    --bit-acd-pad: initial;
-    --bit-acd-ttl-fontsize: initial;
-    --bit-acd-fontsize: initial;
-    --bit-acd-icn-fontsize: initial;
+    @each $name in $acd-private-properties {
+        --bit-acd-#{$name}: initial;
+    }
 
     // The duration of the expand/collapse transition. TransitionDuration arrives inline as the -full token and
-    // everything below reads this derived one, following the -full pattern of motion.fluent.scss, so the
-    // reduced-motion query can still collapse a duration that was set inline. Without one it falls back to the
+    // everything below reads this derived one, which scales it by the shared motion factor, so the reduced motion
+    // preference still collapses a duration that was set inline - and ForceAnimation, or an app restoring the
+    // motion tokens, still brings it back - with no query of the accordion's own. Without one it falls back to the
     // theme's own long duration.
     // The -full token is re-declared here rather than only read, because custom properties inherit: an accordion
     // nested in the panel of one that was given a TransitionDuration would otherwise animate at its parent's
     // duration. The inline declaration sits on the element itself, so it still wins over this one.
     // The default is read from the theme's -full duration rather than from the derived one it feeds: the derived
-    // token is the one the reduced-motion query collapses, so reading it here would leave the .bit-fam opt-out
-    // below nothing to restore.
-    --bit-acd-dur-full: var(--bit-mot-duration-long-full, #{$mot-duration-long});
-    --bit-acd-dur: var(--bit-acd-dur-full);
+    // token is substituted where it is declared (on :root) and inherited as that value, so a -full duration set on
+    // the accordion itself or on any ancestor short of a theme scope would never reach it. The shared factor still
+    // collapses it under reduced motion, as it does a duration set inline.
+    --bit-acd-dur-full: #{$mot-duration-long-full};
+    --bit-acd-dur: #{mot-scaled-duration(var(--bit-acd-dur-full))};
 
     // Every rule that reaches from the root into a part of the accordion is chained down through the header line
     // or through the content container, because an accordion can hold another accordion: a plain descendant
@@ -107,22 +114,6 @@
     }
 }
 
-// 0.01ms instead of 0ms for the same reason as in motion.fluent.scss: a zero-duration transition never fires its
-// transitionend event.
-@media (prefers-reduced-motion: reduce) {
-    .bit-acd {
-        --bit-acd-dur: 0.01ms;
-    }
-}
-
-// The shared .bit-fam opt-out (BitComponentBase.ForceAnimation) only re-points the --bit-mot-* tokens, so the
-// accordion's own token is restored here, both for an accordion that sets ForceAnimation itself and for one
-// sitting inside an opted-out subtree.
-.bit-acd.bit-fam,
-.bit-fam .bit-acd {
-    --bit-acd-dur: var(--bit-acd-dur-full);
-}
-
 
 // The two things an accordion paints inside its own rounded border - the header while the pointer is over it and
 // the panel of a borderless accordion - are square boxes, and a square box in a rounded one paints over the
@@ -143,7 +134,7 @@
 .bit-acd-exp > .bit-acd-hwr {
     border-end-start-radius: 0;
     border-end-end-radius: 0;
-    background-color: var(--bit-Accordion-header-expanded-background, transparent);
+    background-color: var(--bit-acd-hwr-sbg, var(--bit-Accordion-header-expanded-background, transparent));
 }
 
 // The text of the open header is set on the header line rather than left to a variable on the root, which would
@@ -243,6 +234,8 @@
 .bit-acd-hwr {
     display: flex;
     align-items: center;
+    --bit-acd-hwr-sbg: initial;
+    background-color: var(--bit-acd-hwr-sbg);
     transition: background-color $mot-duration-short $mot-easing 0ms;
 }
 
@@ -273,8 +266,7 @@
     // mixin's outset shadow (which would poke past the component edge); the width follows the global focus-ring
     // token so theme overrides still apply.
     &:focus-visible {
-        outline: #{$shp-focus-ring-width} solid var(--bit-Accordion-focus-color, #{$clr-pri-focus});
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
+        @include focus-ring-inset(var(--bit-Accordion-focus-color, #{$clr-pri-focus}));
     }
 }
 
@@ -285,15 +277,19 @@
 // The rule is chained down from the root rather than reaching for a descendant, so that the disabled state of an
 // outer accordion does not take the hover away from the headers of the accordions nested in its panel. A busy
 // header answers no click, so it is left unpainted too, the way a read-only one is.
+//
+// The states change the variable the header line is painted from rather than its background, so the rules that
+// paint it are the ones at rest: a header line the app paints through Classes keeps that paint under the pointer
+// and while it is pressed, instead of losing it to a state that outranks the app's class.
 .bit-acd:not(.bit-dis, .bit-acd-rdo) > .bit-acd-hwr {
     @media (hover: hover) {
         &:has(> .bit-acd-hed > .bit-acd-hdr:not(.bit-acd-bsy):hover) {
-            background-color: var(--bit-acd-hov);
+            --bit-acd-hwr-sbg: var(--bit-acd-hov);
         }
     }
 
     &:has(> .bit-acd-hed > .bit-acd-hdr:not(.bit-acd-bsy):active) {
-        background-color: var(--bit-acd-prs);
+        --bit-acd-hwr-sbg: var(--bit-acd-prs);
     }
 }
 
@@ -303,12 +299,12 @@
 .bit-acd-exp:not(.bit-dis, .bit-acd-rdo) > .bit-acd-hwr {
     @media (hover: hover) {
         &:has(> .bit-acd-hed > .bit-acd-hdr:not(.bit-acd-bsy):hover) {
-            background-color: var(--bit-Accordion-header-expanded-background, var(--bit-acd-hov));
+            --bit-acd-hwr-sbg: var(--bit-Accordion-header-expanded-background, var(--bit-acd-hov));
         }
     }
 
     &:has(> .bit-acd-hed > .bit-acd-hdr:not(.bit-acd-bsy):active) {
-        background-color: var(--bit-Accordion-header-expanded-background, var(--bit-acd-prs));
+        --bit-acd-hwr-sbg: var(--bit-Accordion-header-expanded-background, var(--bit-acd-prs));
     }
 }
 
@@ -440,8 +436,7 @@
 
     // The content region is focusable only while it scrolls (MaxHeight); same inset outline as the header.
     &:focus-visible {
-        outline: #{$shp-focus-ring-width} solid var(--bit-Accordion-focus-color, #{$clr-pri-focus});
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
+        @include focus-ring-inset(var(--bit-Accordion-focus-color, #{$clr-pri-focus}));
     }
 }
 

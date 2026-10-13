@@ -1,7 +1,8 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the frame and never declared here, so a value set on :root re-skins every
-// image, one set on an ancestor every image inside it, and one set on the Style of an instance that one:
+// image, one set on an ancestor every image inside it, and one set on the Style of an instance that one and the images
+// nested in it:
 //   --bit-Image-background          background of the frame, behind a contained image   (default: transparent)
 //   --bit-Image-radius              corner radius of a Rounded frame                    (default: $shp-radius-surface)
 //   --bit-Image-border-width        border width of a Bordered frame                    (default: $shp-border-width)
@@ -20,7 +21,8 @@
 // Bordered, Shadow), and the hover and press ones where OnClick makes the image a control, so a global value
 // restyles those images without rounding, raising or tinting every other one. The fade's default pace is
 // the theme's long motion token, which the reduced motion preference collapses (unless ForceAnimation opts
-// out) the way it collapses every other component's; a pace set through the variable is the page's own.
+// out) the way it collapses every other component's, and a pace set through the variable is scaled by the
+// shared motion factor, so the preference collapses it all the same.
 
 // The frame. Everything inside it is positioned against it, which is what lets a centered fit and an
 // overlay be placed without either of them knowing what is around the component; and it clips, which
@@ -142,7 +144,7 @@
     &.bit-img-pfo {
         animation-fill-mode: both;
         animation-name: bit-img-fade-out;
-        animation-duration: var(--bit-Image-fade-duration, #{$mot-duration-long});
+        animation-duration: mot-scaled-duration(var(--bit-Image-fade-duration, #{$mot-duration-long}));
         animation-timing-function: var(--bit-Image-fade-easing, #{$mot-easing});
     }
 }
@@ -197,12 +199,16 @@
         content: "";
         position: absolute;
         pointer-events: none;
-        background-color: transparent;
+        --bit-img-tnt-bg: initial;
+        background-color: var(--bit-img-tnt-bg, transparent);
         transition: background-color $mot-duration-short $mot-easing;
     }
 
+    // The states change the variable the tint is painted from rather than its background, so the one rule that
+    // paints it is the one at rest above: a tint the app paints itself keeps that paint under the pointer and
+    // while it is pressed, instead of losing it to a state that outranks the app's rule.
     &:has(> .bit-img-img:active, > .bit-img-pic > .bit-img-img:active)::after {
-        background-color: var(--bit-Image-active-overlay, color-mix(in srgb, currentcolor 10%, transparent));
+        --bit-img-tnt-bg: var(--bit-Image-active-overlay, color-mix(in srgb, currentcolor 10%, transparent));
     }
 }
 
@@ -210,7 +216,7 @@
 // tint behind on whatever was tapped last.
 @media (hover: hover) {
     .bit-img-clk:has(> .bit-img-img:hover, > .bit-img-pic > .bit-img-img:hover):not(:has(> .bit-img-img:active, > .bit-img-pic > .bit-img-img:active))::after {
-        background-color: var(--bit-Image-hover-overlay, color-mix(in srgb, currentcolor 5%, transparent));
+        --bit-img-tnt-bg: var(--bit-Image-hover-overlay, color-mix(in srgb, currentcolor 5%, transparent));
     }
 }
 
@@ -295,7 +301,7 @@
 .bit-img-img.bit-img-vis.bit-img-fde {
     animation-fill-mode: both;
     animation-name: bit-img-fade-in;
-    animation-duration: var(--bit-Image-fade-duration, #{$mot-duration-long});
+    animation-duration: mot-scaled-duration(var(--bit-Image-fade-duration, #{$mot-duration-long}));
     animation-timing-function: var(--bit-Image-fade-easing, #{$mot-easing});
 }
 

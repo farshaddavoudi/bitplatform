@@ -330,7 +330,7 @@ public partial class BitSearchBoxDemo
             Name = "NoClearOnEscape",
             Type = "bool",
             DefaultValue = "false",
-            Description = "Prevents clearing the value of the search box when the user presses the escape key.",
+            Description = "Prevents clearing the value of the search box when the user presses the escape key, which hands the key back to the Dialog, the Modal, the Panel or the Overlay the field sits in. Without it, the press that clears the field is the field's alone, and they close on the next one.",
         },
         new()
         {
@@ -628,7 +628,7 @@ public partial class BitSearchBoxDemo
         new()
         {
             Name = "--bit-SearchBox-placeholder-color",
-            DefaultValue = "$clr-fg-sec",
+            DefaultValue = "--bit-clr-fg-sec",
             Description = "Text color of the placeholder.",
         },
         new()
@@ -701,7 +701,7 @@ public partial class BitSearchBoxDemo
         {
             Name = "--bit-SearchBox-focus-color",
             DefaultValue = "$clr-pri-focus",
-            Description = "Focus ring color of the field, the clear button and the search button. The Color parameter wins over it.",
+            Description = "Focus ring color of the field, the clear button and the search button. The Color parameter wins over it. While it is unset, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too.",
         },
         new()
         {

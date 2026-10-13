@@ -258,6 +258,35 @@ public class BitButtonGroupTests : BunitTestContext
         Assert.IsTrue(notNavigable.FindAll("button").All(b => b.GetAttribute("tabindex") == "0"));
     }
 
+    // The horizontal arrows walk the group the way it is laid out: a Dir that names no direction leaves that to the
+    // page (unset) or to the content (Auto), which is read off the group for those keys alone.
+    [TestMethod,
+        DataRow(null, true),
+        DataRow(BitDir.Auto, true),
+        DataRow(BitDir.Rtl, true),
+        DataRow(BitDir.Ltr, false)
+    ]
+    public void BitButtonGroupArrowLeftShouldFollowTheDirectionTheGroupIsLaidOutIn(BitDir? dir, bool rtl)
+    {
+        Context.JSInterop.Setup<bool>("BitBlazorUI.Utils.isRtl", _ => true).SetResult(true);
+
+        var comp = RenderComponent<BitButtonGroup<BitButtonGroupItem>>(parameters =>
+        {
+            parameters.Add(p => p.Dir, dir);
+            parameters.Add(p => p.Items, [new() { Text = "A", Key = "a" }, new() { Text = "B", Key = "b" }, new() { Text = "C", Key = "c" }]);
+            parameters.Add(p => p.SelectionMode, BitSelectionMode.Single);
+            parameters.Add(p => p.DefaultToggleKey, "b");
+        });
+
+        comp.Find(".bit-btg").KeyDown("ArrowUp");
+        Context.JSInterop.VerifyNotInvoke("BitBlazorUI.Utils.isRtl");
+
+        comp.Find(".bit-btg").KeyDown("ArrowLeft");
+
+        Assert.AreEqual("0", comp.FindAll("button")[rtl ? 2 : 0].GetAttribute("tabindex"));
+        Assert.AreEqual(dir is null or BitDir.Auto, Context.JSInterop.Invocations.Any(i => i.Identifier == "BitBlazorUI.Utils.isRtl"));
+    }
+
     [TestMethod]
     public void BitButtonGroupNavigableShouldMoveTheFocusWithTheArrowHomeAndEndKeys()
     {
@@ -350,6 +379,54 @@ public class BitButtonGroupTests : BunitTestContext
 
         Assert.IsFalse(disabled.HasAttribute("disabled"));
         Assert.AreEqual("true", disabled.GetAttribute("aria-disabled"));
+    }
+
+    [TestMethod]
+    public void BitButtonGroupDisabledInteractiveShouldNotRunTheItemsOfADisabledGroup()
+    {
+        // DisabledInteractive keeps the buttons of a disabled group out of the disabled attribute, so the click a key
+        // press or a screen reader delivers reaches the group, which turns it away for the group's Disabled as it does
+        // for an item's own IsDisabled.
+        var itemClicks = 0;
+        var groupClicks = 0;
+        var items = new List<BitButtonGroupItem>
+        {
+            new() { Text = "A", OnClick = _ => itemClicks++ },
+            new() { Text = "B", Href = "/b" }
+        };
+
+        var comp = RenderComponent<BitButtonGroup<BitButtonGroupItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, items);
+            parameters.Add(p => p.Disabled, true);
+            parameters.Add(p => p.DisabledInteractive, true);
+            parameters.Add(p => p.OnItemClick, (BitButtonGroupItem _) => groupClicks++);
+        });
+
+        comp.Find("button.bit-btg-itm").Click();
+        comp.Find("a.bit-btg-itm").Click();
+
+        Assert.AreEqual(0, itemClicks);
+        Assert.AreEqual(0, groupClicks);
+    }
+
+    [TestMethod]
+    public void BitButtonGroupDisabledGroupShouldTakeItsLinkItemsOutOfTheTabOrder()
+    {
+        // A link item has no disabled attribute to take it out of the tab order, so a disabled group does it for it.
+        var items = new List<BitButtonGroupItem>
+        {
+            new() { Text = "A", Href = "/a" },
+            new() { Text = "B", Href = "/b" }
+        };
+
+        var comp = RenderComponent<BitButtonGroup<BitButtonGroupItem>>(parameters =>
+        {
+            parameters.Add(p => p.Items, items);
+            parameters.Add(p => p.Disabled, true);
+        });
+
+        Assert.IsTrue(comp.FindAll("a.bit-btg-itm").All(a => a.GetAttribute("tabindex") == "-1"));
     }
 
     [TestMethod]

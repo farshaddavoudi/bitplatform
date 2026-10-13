@@ -120,7 +120,7 @@ public partial class BitTextFieldDemo : IDisposable
             Name = "ClearOnEscape",
             Type = "bool",
             DefaultValue = "false",
-            Description = "Empties the field when the Escape key is pressed in it, which is the keyboard counterpart of the clear button and what a filter or a search field is expected to do. It raises OnClear and is announced the same way a press on the button is, it leaves a read-only field alone, and it does not need ShowClearButton. OnEscape is still raised afterwards, and Escape keeps its own meaning while an input method editor is composing.",
+            Description = "Empties the field when the Escape key is pressed in it, which is the keyboard counterpart of the clear button and what a filter or a search field is expected to do. It raises OnClear and is announced the same way a press on the button is, it leaves a read-only field and one bound one way alone, and it does not need ShowClearButton. The press that clears the field is the field's alone, so a Dialog, a Modal, a Panel or an Overlay around it closes on the next one; an Escape with Shift, Ctrl, Alt or Meta held clears nothing and goes straight to them. OnEscape is still raised afterwards, and Escape keeps its own meaning while an input method editor is composing.",
         },
         new()
         {
@@ -921,7 +921,7 @@ public partial class BitTextFieldDemo : IDisposable
         {
             Name = "--bit-TextField-focus-color",
             DefaultValue = "--bit-clr-pri-focus",
-            Description = "Color of the keyboard focus ring, of the underline of a focused Underlined field, and of the rings of the clear, reveal and icon buttons. The Accent parameter wins over it.",
+            Description = "Color of the keyboard focus ring, of the underline of a focused Underlined field, and of the rings of the clear, reveal and icon buttons. The Accent parameter wins over it. While it is unset, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too.",
         },
         new()
         {
@@ -980,8 +980,8 @@ public partial class BitTextFieldDemo : IDisposable
         new()
         {
             Name = "--bit-TextField-placeholder-color",
-            DefaultValue = "--bit-clr-fg-ter",
-            Description = "Color of the placeholder. It replaces the grey the browser picks on its own, which is not derived from the theme and drops below the contrast floor on a dark surface.",
+            DefaultValue = "--bit-clr-fg-sec",
+            Description = "Color of the placeholder. It replaces the grey the browser picks on its own, which is not derived from the theme and drops below the contrast floor on most surfaces.",
         },
         new()
         {

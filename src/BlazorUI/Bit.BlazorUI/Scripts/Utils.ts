@@ -115,10 +115,12 @@
 
             // A caller-supplied selector says where the focus belongs when the first focusable element is
             // not it. It is tried on its own so a selector that is invalid, or that matches nothing
-            // visible, falls through to the default rather than leaving the focus behind on the page.
+            // visible, falls through to the default rather than leaving the focus behind on the page. An
+            // element it names is focused even when a negative tabindex keeps it out of the tab sequence -
+            // a heading made programmatically focusable is a place the consumer asked for by name.
             if (selector) {
                 try {
-                    const preferred = Array.from(container.querySelectorAll<HTMLElement>(selector)).find(Utils.isFocusable);
+                    const preferred = Array.from(container.querySelectorAll<HTMLElement>(selector)).find(Utils.canHoldFocus);
                     if (preferred) {
                         preferred.focus();
                         return;
@@ -129,18 +131,16 @@
             try {
                 // The same set the focus trap cycles through, so the element the focus lands on when the
                 // popup opens is the same one Shift+Tab wraps back to from the end of it.
-                const candidates = Array.from(container.querySelectorAll<HTMLElement>(Utils._focusables));
-
                 // The consumer naming the element the focus should land on, for the popups whose first
                 // focusable element is not the one worth starting at - a dismiss button ahead of the field
                 // the popup was opened to fill in. The first focusable element is the fallback.
                 // The standard autofocus attribute says the same thing and is what a native dialog reads,
                 // so it is honoured alongside the data- one: the browser only ever acts on it for markup
                 // that was in the document when it was parsed, which a popup's content never is.
-                const requested = candidates.find(el =>
-                    (el.hasAttribute('data-autofocus') || el.hasAttribute('autofocus')) && Utils.isFocusable(el));
+                const requested = Utils.firstFocusable(container, el =>
+                    el.hasAttribute('data-autofocus') === false && el.hasAttribute('autofocus') === false);
 
-                (requested ?? candidates.find(Utils.isFocusable) ?? container).focus();
+                (requested ?? Utils.firstFocusable(container) ?? container).focus();
             } catch (e) { console.error("BitBlazorUI.Utils.focusFirstElement:", e); }
         }
 
@@ -155,7 +155,7 @@
                 const container = document.getElementById(containerId);
                 if (!container || container.contains(document.activeElement)) return;
 
-                const trigger = Array.from(container.querySelectorAll<HTMLElement>(Utils._focusables)).find(Utils.isFocusable);
+                const trigger = Utils.firstFocusable(container);
 
                 trigger?.focus({ preventScroll: true });
             } catch (e) { console.error("BitBlazorUI.Utils.focusClickedTrigger:", e); }
@@ -234,9 +234,27 @@
             observer: MutationObserver | null
         }>();
 
+        // The focusable elements that are content rather than a control: a disclosure's summary and an embedded
+        // frame or media player take the focus, but are never the control a popup or a tooltip belongs to, and
+        // one written ahead of that control would otherwise take the attributes meant for it.
+        private static readonly _notAControl = 'summary, iframe, audio, video';
+
+        // The first control inside the container a relationship can be mirrored onto, leaving out the ones the
+        // skip callback names. Nothing is measured: the relationship is written whether or not the control is
+        // on screen right now, as nothing writes it again the moment it is.
+        private static findControl(container: HTMLElement, skip?: (el: HTMLElement) => boolean): HTMLElement | null {
+            const all = container.querySelectorAll<HTMLElement>(Utils.focusableSelector);
+
+            for (let i = 0; i < all.length; i++) {
+                if (all[i].matches(Utils._notAControl) === false && skip?.(all[i]) !== true) return all[i];
+            }
+
+            return null;
+        }
+
         private static applyAriaPopup(state: { anchor: HTMLElement, popupId: string, isOpen: boolean, hasPopup: string, target: HTMLElement | null }) {
             const anchor = state.anchor;
-            const trigger = anchor.querySelector<HTMLElement>(Utils._focusables) ?? anchor;
+            const trigger = Utils.findControl(anchor) ?? anchor;
 
             // The element that carried the relationship before is no longer the trigger - another control took
             // its place, or it lost the last focusable element to the container itself - so what this code put
@@ -282,8 +300,7 @@
 
                 // An interactive tooltip may hold something focusable of its own, which sits inside the same
                 // root and would otherwise be taken for the anchor whenever the anchor holds none itself.
-                const target = Array.from(root.querySelectorAll<HTMLElement>(Utils._focusables))
-                    .find(el => el.closest('.bit-ttp-wrp') === null);
+                const target = Utils.findControl(root, el => el.closest('.bit-ttp-wrp') !== null);
 
                 // Nothing focusable to mirror onto: the markup has already declared the relationship on the
                 // root, which is where it stays.
@@ -310,24 +327,18 @@
         private static _tooltipsByRoot = new Map<HTMLElement, DotNetObject>();
         private static _tooltipsController: AbortController | null = null;
 
-        // An element that answers Escape itself - a text entry clears or reverts on it, a combobox or anything
-        // expanded closes what it opened - so a tooltip around it lets the key through to that element.
-        private static readonly _escapeOwners =
-            'input:not([type="button"],[type="submit"],[type="reset"],[type="checkbox"],[type="radio"],[type="image"],[type="range"],[type="color"],[type="file"]),' +
-            'textarea,select,[contenteditable]:not([contenteditable="false"]),' +
-            '[role="combobox"],[role="searchbox"],[role="textbox"],[role="spinbutton"],[aria-expanded="true"]';
-
         // Lets Escape dismiss a shown tooltip (WCAG 1.4.13 "dismissible") from the two places it can come from:
         // the keyboard inside the tooltip - on its anchor - and anywhere on the page while the pointer rests on
         // the tooltip, since a tooltip shown on hover is shown while the focus is wherever the user left it.
         // Either way the key is the tooltip's alone: it is taken before Blazor's document-level delegation sees
         // it, so a dialog or a callout the tooltip sits in is not dismissed by the same press, and a second
-        // Escape reaches them as usual. The one exception is a key pressed on something inside the anchor that
-        // answers Escape itself (a text field, a search box, a dropdown): the tooltip is dismissed along with
-        // it, and the key goes on to the component it was pressed on. Whether a tooltip takes it is read off the
-        // DOM on the spot - shown (bit-ttp-vis) and dismissible (data-bit-ttp-esc) - because the answer cannot
-        // wait for a round trip. It also tells a tooltip a click opened about the press outside it that
-        // dismisses it.
+        // Escape reaches them as usual. The one exception is a key pressed on a component inside the anchor that
+        // acts on it itself: the tooltip is dismissed along with it, and the key goes on to that component. Which
+        // components act on it is never guessed from what the target looks like - the components say so, the
+        // way every surface hears it: a claim (data-bit-esc, see claimEscape), or a popup of theirs that is open
+        // and that the key closes (Callouts.componentContains). Whether a tooltip takes it is read off the DOM on
+        // the spot - shown (bit-ttp-vis) and dismissible (data-bit-ttp-esc) - because the answer cannot wait for
+        // a round trip. It also tells a tooltip a click opened about the press outside it that dismisses it.
         public static setupTooltip(rootId: string, tooltipId: string, attribute: string, dotnetObj: DotNetObject) {
             Utils.disposeTooltip(rootId);
 
@@ -338,14 +349,22 @@
 
             const controller = new AbortController();
 
-            // A component inside the anchor that answered the key natively itself (and said so) keeps it.
             root.addEventListener('keydown', e => {
-                if (e.key !== 'Escape' || e.defaultPrevented) return;
+                // Only the plain key: an Escape with a modifier goes on to the surface around the tooltip, as it
+                // does past every component that acts on Escape (claimEscape).
+                if (e.key !== 'Escape' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                // A press cancelling an IME composition in a field of the anchor is the composition's: it goes on to the
+                // field untaken, and no further than the page's own elements (see stopComposingEscape).
+                if (Utils.isComposingKey(e)) return;
                 if (!root.querySelector(':scope > .bit-ttp-wrp.bit-ttp-vis[data-bit-ttp-esc]')) return;
 
-                const target = e.target as Element | null;
-                const owner = target?.closest(Utils._escapeOwners);
-                if (!owner || !root.contains(owner) || owner.closest('.bit-ttp-wrp')) {
+                if (e.defaultPrevented) {
+                    // A press a component inside the anchor claimed is that component's, and the tooltip goes with
+                    // it. One prevented by anything else - a listener of the consumer's own - is left alone.
+                    const claimer = Utils.escapeClaimer(e);
+                    if (!claimer || !root.contains(claimer)) return;
+                } else if (!Callouts.componentContains(e.target as Node | null, root)) {
+                    // Nothing inside the anchor acts on the key, so it is the tooltip's alone.
                     e.preventDefault();
                     e.stopImmediatePropagation();
                 }
@@ -376,42 +395,81 @@
             }
         }
 
-        // The two document-level listeners every tooltip needs are shared by all of them, and each one asks the
-        // DOM for the few tooltips that are actually shown instead of every tooltip on the page asking for
-        // itself - a toolbar or a grid of a few hundred tooltips pays for one listener per key and press.
+        // The tooltips registered on the page that are shown right now and carry the given marker, read off the DOM
+        // so that a toolbar or a grid of a few hundred tooltips is asked about only the few that are shown.
+        private static shownTooltips(marker: string) {
+            return Array.from(document.querySelectorAll<HTMLElement>(`.bit-ttp-wrp.bit-ttp-vis[${marker}]`))
+                .map(wrp => wrp.parentElement)
+                .filter((root): root is HTMLElement => !!root && Utils._tooltipsByRoot.has(root));
+        }
+
+        // Dismisses every dismissible tooltip under the pointer - a nested one along with the one around it - on an
+        // Escape pressed anywhere in the page. It is not added by the tooltips: general.ts adds it once, as the page
+        // loads, on the window in the capture phase right after the claim (claimEscape). Listeners on one node run in
+        // the order they were added, so one a tooltip added as it registered would land wherever the page happened
+        // to be by then - behind the listener of a menu that was already open when the tooltip is in its content,
+        // or of an overlay opened before the first tooltip was - and those would act on the press the tooltip takes.
+        // Added first it is ahead of every surface of the library whenever it opened, and it costs nothing while no
+        // tooltip is shown.
+        // A press it takes goes no further than the window: it is prevented, and stopPropagation keeps it from the
+        // document and everything under it - a callout's own Escape listener and Blazor's delegation included. The
+        // other listeners on the window still hear it, and read it as taken (defaultPrevented), which leaves an app's
+        // own listener there the key it has always been given.
+        public static dismissTooltipsOnEscape(e: KeyboardEvent) {
+            // A press a component claimed (see claimEscape) is that component's: the tooltip stays, and the key goes
+            // on to the component rather than being stopped here.
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            // A press cancelling an IME composition is the composition's, wherever the pointer rests.
+            if (Utils.isComposingKey(e)) return;
+
+            if (Utils._tooltipsByRoot.size === 0) return;
+
+            // A gesture in progress that the key puts back (a swipe) is what the user is doing with the pointer the
+            // tooltip is under, so the press is the gesture's, and the tooltip stays.
+            for (const takes of Utils._escapeGestures) {
+                if (takes()) return;
+            }
+
+            const target = e.target as Node | null;
+            let taken = false;
+
+            for (const root of Utils.shownTooltips('data-bit-ttp-esc')) {
+                if (target && root.contains(target)) continue; // the root's own listener answers it
+                if (!root.matches(':hover')) continue;
+
+                Utils._tooltipsByRoot.get(root)!.invokeMethodAsync('OnEscape')
+                     .catch(err => console.error("BitBlazorUI.Utils.dismissTooltipsOnEscape:", err));
+                taken = true;
+            }
+
+            if (!taken) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // The gestures in progress that an Escape puts back, each asked as the key goes down whether this press is
+        // its own. They take the key on a listener of their own, added on the window as the gesture starts - after
+        // the one that dismisses the tooltips, which has to leave the press to them.
+        private static _escapeGestures = new Set<() => boolean>();
+
+        public static addEscapeGesture(takes: () => boolean) {
+            Utils._escapeGestures.add(takes);
+        }
+
+        public static removeEscapeGesture(takes: () => boolean) {
+            Utils._escapeGestures.delete(takes);
+        }
+
+        // The page-level listener every tooltip a press opens needs is shared by all of them, and asks the DOM for
+        // the few tooltips that are actually shown instead of every tooltip on the page asking for itself - a
+        // toolbar or a grid of a few hundred tooltips pays for one listener per press. (The Escape that dismisses a
+        // tooltip has a listener of its own, added once for the page: see dismissTooltipsOnEscape.)
         private static ensureTooltipListeners() {
             if (Utils._tooltipsController) return;
 
             const controller = Utils._tooltipsController = new AbortController();
-
-            const shown = (marker: string) => Array.from(document.querySelectorAll<HTMLElement>(`.bit-ttp-wrp.bit-ttp-vis[${marker}]`))
-                .map(wrp => wrp.parentElement)
-                .filter((root): root is HTMLElement => !!root && Utils._tooltipsByRoot.has(root));
-
-            // In the capture phase, so the key is taken before whatever holds the focus acts on it. Every
-            // tooltip under the pointer - a nested one along with the one around it - is dismissed by the press,
-            // and stopImmediatePropagation keeps it from any other listener on the document as well, a callout's
-            // own Escape listener included.
-            document.addEventListener('keydown', e => {
-                if (e.key !== 'Escape') return;
-
-                const target = e.target as Node | null;
-                let taken = false;
-
-                for (const root of shown('data-bit-ttp-esc')) {
-                    if (target && root.contains(target)) continue; // the root's own listener answers it
-                    if (!root.matches(':hover')) continue;
-
-                    Utils._tooltipsByRoot.get(root)!.invokeMethodAsync('OnEscape')
-                         .catch(err => console.error("BitBlazorUI.Utils.setupTooltip:", err));
-                    taken = true;
-                }
-
-                if (!taken) return;
-
-                e.preventDefault();
-                e.stopImmediatePropagation();
-            }, { signal: controller.signal, capture: true });
 
             // A tooltip a press of the anchor opened (data-bit-ttp-clk) is dismissed by the next press elsewhere.
             // The focus leaving the anchor says as much in some browsers, but Safari and the touch browsers never
@@ -420,7 +478,7 @@
             document.addEventListener('pointerdown', e => {
                 const target = e.target as Node | null;
 
-                for (const root of shown('data-bit-ttp-clk')) {
+                for (const root of Utils.shownTooltips('data-bit-ttp-clk')) {
                     if (target && root.contains(target)) continue;
 
                     Utils._tooltipsByRoot.get(root)!.invokeMethodAsync('OnOutsidePress')
@@ -463,12 +521,15 @@
 
         // True when the target of a key sits on something inside the given container that consumes the
         // arrow keys (and Home/End) on its own: an editable field moves its caret with them, and a slider,
-        // a list, a radio group or a grid moves its own selection. The container itself does not count,
-        // and neither does an element outside of it.
+        // a list, a radio group or a grid moves its own selection. So does a dialog, a panel or a modal
+        // rendered inside the container: every key pressed in one is its own (isInNestedSurface). The
+        // container itself does not count, and neither does an element outside of it.
         private static isKeyConsumer(container: HTMLElement, target: HTMLElement) {
             if (target === container || !container.contains(target)) return false;
 
             if (target.isContentEditable) return true;
+
+            if (Utils.isInNestedSurface(target, container)) return true;
 
             const tag = target.tagName;
             if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
@@ -620,14 +681,148 @@
             Utils._focusTraps.delete(elementId);
         }
 
+        // The convention every surface that closes on Escape goes by (setupSurfaceEscape, setupEscapeGuard,
+        // watchEscape, watchLayerEscape, setupEscape, setupTooltip): whoever acts on the key claims it by
+        // preventing its default, so one press does one thing - a field inside a dialog clears, and the dialog
+        // waits for the next press. A component that acts on Escape only in its .NET handler cannot say so from
+        // there: a Blazor @onkeydown:preventDefault holds for every key at once, and the handler itself runs too
+        // late for anything to read its answer. It says so in its markup instead, on the element it listens on,
+        // and this is read off the DOM as the key goes down (general.ts, in the capture phase, so the claim is on
+        // the event before any surface around the component hears it):
+        // - data-bit-esc="claim": the element acts on every plain Escape pressed in it;
+        // - data-bit-esc="text": it acts while the field it is on holds text - the live text, which a field that
+        //   only commits on blur has not reported to .NET yet.
+        // The attribute is rendered from the very state the .NET handler decides on, so the key is claimed
+        // exactly when the component acts on it, and an Escape the component leaves alone still reaches the
+        // surface around it. An element that leaves the key alone hands it to the next one out, whose handler
+        // hears a key pressed anywhere inside it - up to the nearest surface the key was pressed in (isEscapeSurface):
+        // that surface is the innermost thing the key closes, so nothing it is rendered inside of (a message, a
+        // dropdown's field) claims the key away from it. The same goes for the two other things that close on the
+        // key without claiming it: a shown tooltip whose anchor the key was pressed in (setupTooltip), and a
+        // component whose popup is open (Callouts.componentContains) - so a date picker in a navigation drawer
+        // closes its calendar, and a tooltip on a button of a dialog goes away, while the drawer or the dialog
+        // around them waits for the next press. An IME composition is nobody's here (the key cancels the
+        // candidate), and neither is an Escape with a modifier, which the components leave alone (IsPlainEscape)
+        // so the surface around them closes on it.
+        public static claimEscape(e: KeyboardEvent) {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (Utils.isComposingKey(e)) return;
+            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+            const target = e.target instanceof Element ? e.target : null;
+
+            for (let element = target; element; element = element.parentElement) {
+                const claim = element.getAttribute('data-bit-esc');
+                if (claim === 'claim' || (claim === 'text' && (element as HTMLInputElement).value)) {
+                    // A component between the key and the claim whose popup is open closes that popup on it.
+                    if (Callouts.componentContains(target, element)) return;
+
+                    Utils._escapeClaimers.set(e, element);
+                    e.preventDefault();
+                    return;
+                }
+
+                if (Utils.isEscapeSurface(element)) return;
+                if (Utils.showsDismissibleTooltip(element)) return;
+            }
+        }
+
+        // Whether the element is the anchor of a tooltip that is shown and closes on Escape (see setupTooltip).
+        private static showsDismissibleTooltip(element: Element) {
+            return Utils._tooltipsByRoot.has(element as HTMLElement)
+                && !!element.querySelector(':scope > .bit-ttp-wrp.bit-ttp-vis[data-bit-ttp-esc]');
+        }
+
+        // Whether the key was pressed while an input method editor (Pinyin, Kana, Hangul, ...) was composing, where
+        // Escape cancels the candidate rather than meaning anything to the page: such a press is nobody's, and every
+        // listener that closes something on Escape leaves it alone. Most engines report those keydowns as the
+        // "Process" key, which no listener is looking for anyway; the ones that report the real key set isComposing,
+        // and the ones that predate it report the legacy 229 key code instead.
+        public static isComposingKey(e: KeyboardEvent | InputEvent) {
+            return e.isComposing || (e as KeyboardEvent).keyCode === 229;
+        }
+
+        // Keeps an Escape that cancels an IME composition (see isComposingKey) away from .NET. KeyboardEventArgs cannot
+        // tell such a press from any other - it carries no key code, and no composition state before .NET 9 - and the
+        // engines that report the real key for it (WebKit) would have every .NET handler that acts on Escape - a
+        // dropdown's search box, a picker's field, a callout around a field of the consumer's own - act on the press
+        // the user made to put a candidate back. general.ts calls it on the document element in the bubble phase, so
+        // every listener of the page's own elements has heard the key by then - the field's, the surfaces', which
+        // leave it alone themselves - and only Blazor's delegation on the document, and the listeners after it, do
+        // not: such a press then reaches .NET in no engine, where the others report it as the "Process" key anyway.
+        public static stopComposingEscape(e: KeyboardEvent) {
+            if (e.key !== 'Escape' || !Utils.isComposingKey(e)) return;
+
+            e.stopPropagation();
+        }
+
+        private static _escapeClaimers = new WeakMap<Event, Element>();
+
+        // The element an Escape was claimed for (see claimEscape), if any. A claimer whose .NET handler hears every
+        // key pressed inside it - a message dismissing on Escape - reads it to tell its own press from one that a
+        // component or a surface inside it took first, which Blazor's dispatch goes on bubbling to it all the same.
+        public static escapeClaimer(e: Event) {
+            return Utils._escapeClaimers.get(e) ?? null;
+        }
+
+        private static _escapeClaimWatches = new Map<string, AbortController>();
+
+        // Tells a component whose .NET keydown handler on its root acts on Escape, through its OnEscapeVerdict
+        // callback, whether the Escape that handler is about to hear is its own: the one its root claimed (see
+        // claimEscape), rather than one a component inside it acted on and claimed first (a search box emptying
+        // itself, a field of a template clearing), which Blazor's dispatch bubbles up to the root all the same. A
+        // press with a modifier or during an IME composition is claimed by nobody, so it is not the root's either.
+        // The listener is on the root, so it runs before Blazor's document-level delegation, and the answer is
+        // queued ahead of the keydown Blazor dispatches right after it. It only answers while the root claims the
+        // key at all (data-bit-esc). A BitMessage goes by it to dismiss itself, and the Extras' dialogs and panels
+        // through BitEscapeClaimWatch.
+        public static watchEscapeClaim(id: string, root: HTMLElement, dotnetObj: DotNetObject) {
+            Utils.unwatchEscapeClaim(id);
+
+            if (!root || !(root instanceof Element)) return;
+
+            const controller = new AbortController();
+
+            Utils.sendEscapeVerdicts([root], dotnetObj, controller.signal, 'watchEscapeClaim',
+                e => root.hasAttribute('data-bit-esc') ? Utils.escapeClaimer(e) !== root : null);
+
+            Utils._escapeClaimWatches.set(id, controller);
+        }
+
+        public static unwatchEscapeClaim(id: string) {
+            const controller = Utils._escapeClaimWatches.get(id);
+            if (!controller) return;
+
+            Utils._escapeClaimWatches.delete(id);
+            controller.abort();
+        }
+
+        // The elements that close on an Escape pressed inside them, registered by the surfaces of the library as they
+        // start listening (setupSurfaceEscape, setupEscapeGuard, setupEscape; watchEscape and watchLayerEscape mark
+        // theirs as escape roots), plus a dialog of the consumer's own.
+        private static _escapeSurfaces = new WeakSet<Element>();
+
+        private static isEscapeSurface(element: Element) {
+            return Utils._escapeSurfaces.has(element)
+                || !!(element as any).__bitEscapeRoot
+                || element.matches('[role="dialog"],[role="alertdialog"],dialog');
+        }
+
+        private static forgetEscapeSurface(elementId: string) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                Utils._escapeSurfaces.delete(element);
+            }
+        }
+
         private static _surfaceEscapes = new Map<string, AbortController>();
 
         // Answers an Escape pressed inside a surface (a dialog) through the OnEscape callback - but only when the
         // key is the surface's own. Four things own it first: an IME composition, which Escape cancels; a
-        // control that has taken it (defaultPrevented); a component inside the surface whose own popup is open -
-        // a combo box, a search box's suggestions, a date picker - which closes that popup on the key and has its
-        // keydown bubble on up through the surface; and a surface nested inside this one (a dialog opened from
-        // inside it), which has answered the key before it got here.
+        // control that has taken it (defaultPrevented, see claimEscape); a component inside the surface whose own
+        // popup is open - a combo box, a search box's suggestions, a date picker - which closes that popup on the
+        // key and has its keydown bubble on up through the surface; and a surface nested inside this one (a dialog
+        // opened from inside it), which has answered the key before it got here.
         // The popups are read as the key is pressed: this listener is on the element, so it runs before Blazor's
         // document-level delegation lets the component close its popup, while the stack of open callouts is still
         // the one the key was pressed against. Whether a control took the key is read once the whole dispatch is
@@ -641,6 +836,8 @@
             const element = document.getElementById(elementId);
             if (!element) return;
 
+            Utils._escapeSurfaces.add(element);
+
             const controller = new AbortController();
             const signal = controller.signal;
 
@@ -648,12 +845,13 @@
                 if (e.key !== 'Escape') return;
 
                 // The nearest surface owns the key whatever it goes on to do with it, so an outer one never
-                // answers an Escape an inner one has already seen.
-                const event = e as KeyboardEvent & { __bitSurfaceEscape?: boolean };
-                if (event.__bitSurfaceEscape) return;
-                event.__bitSurfaceEscape = true;
+                // answers an Escape an inner one has already seen - a dialog, a panel, a modal or an open callout
+                // nested inside this one - nor do the surfaces around it (see _escapeSurfaceOwners).
+                const nested = Utils.claimSurfaceEscape(e, element);
+                (e as KeyboardEvent & { __bitSurfaceEscape?: boolean }).__bitSurfaceEscape = true;
+                if (nested) return;
 
-                if (e.isComposing || e.keyCode === 229 || e.defaultPrevented) return;
+                if (Utils.isComposingKey(e) || e.defaultPrevented) return;
 
                 if (Callouts.componentContains(e.target as Node | null, element)) return;
 
@@ -673,6 +871,7 @@
 
             controller.abort();
             Utils._surfaceEscapes.delete(elementId);
+            Utils.forgetEscapeSurface(elementId);
         }
 
         private static _tabOuts = new Map<string, AbortController>();
@@ -684,18 +883,17 @@
         // content is made to read as if it sat right after the trigger instead: Tab on the trigger goes into it,
         // Tab from its last element moves on to what follows the trigger in the page and reports it through the
         // OnTabOut callback so the popup closes, and Shift+Tab from its first element goes back to the trigger,
-        // leaving the popup open for the Tab that brings the user back in.
+        // leaving the popup open for the Tab that brings the user back in. Reports whether it was registered,
+        // which it is not for a popup that is not in the page.
         public static setupTabOut(elementId: string, triggerId: string, dotnetObj: DotNetObject) {
             Utils.disposeTabOut(elementId);
 
             const element = document.getElementById(elementId);
-            if (!element) return;
+            if (!element) return false;
 
             const controller = new AbortController();
 
             const isPlainTab = (e: KeyboardEvent) => e.key === 'Tab' && !e.defaultPrevented && !e.altKey && !e.ctrlKey && !e.metaKey;
-
-            const getFocusables = () => Array.from(element.querySelectorAll<HTMLElement>(Utils._focusables)).filter(Utils.isFocusable);
 
             element.addEventListener('keydown', e => {
                 if (!isPlainTab(e)) return;
@@ -706,7 +904,7 @@
                 const trigger = document.getElementById(triggerId);
                 if (!trigger) return;
 
-                const focusables = getFocusables();
+                const focusables = Utils.getFocusables(element);
                 const active = document.activeElement;
 
                 if (e.shiftKey) {
@@ -736,7 +934,9 @@
                     Utils.focusTrigger(trigger);
                 }
 
-                dotnetObj.invokeMethodAsync('OnTabOut');
+                // The component may be disposed while the call is on its way - a navigation the Tab started - and
+                // the popup goes with it then, which is all the call was for.
+                dotnetObj.invokeMethodAsync('OnTabOut').catch(() => { });
             }, { signal: controller.signal });
 
             // The trigger's half of the same order: a Tab on it goes into the content rather than past it. The
@@ -747,19 +947,31 @@
             // that would leave it is taken: the one from its last control. A Tab from any other moves on to the
             // next control inside it, as it would without the popup open. A trigger with no controls inside it
             // is a control itself, and every Tab on it is the one that leaves it.
+            // The Tab is only taken while there is somewhere in the popup for it to go. A popup its component has
+            // already closed - the trigger saying so through aria-expanded before the hiding and this listener's
+            // release reach the page - or one that is hidden, or that holds nothing the focus can land on and is
+            // not focusable itself, would otherwise swallow the key: the focus would be sent to an element that
+            // cannot take it, and stay where it is.
             document.getElementById(triggerId)?.addEventListener('keydown', e => {
                 if (!isPlainTab(e) || e.shiftKey) return;
 
                 const trigger = e.currentTarget as HTMLElement;
-                const inner = Array.from(trigger.querySelectorAll<HTMLElement>(Utils._focusables)).filter(Utils.isFocusable);
+                const inner = Utils.getFocusables(trigger);
                 if (inner.length > 0 && e.target !== inner[inner.length - 1]) return;
+
+                if (trigger.getAttribute('aria-expanded') === 'false' || !Utils.isFocusable(element)) return;
+
+                const target = Utils.firstFocusable(element) ?? (element.hasAttribute('tabindex') ? element : null);
+                if (!target) return;
 
                 e.preventDefault();
 
-                (getFocusables()[0] ?? element).focus();
+                target.focus();
             }, { signal: controller.signal });
 
             Utils._tabOuts.set(elementId, controller);
+
+            return true;
         }
 
         private static _focusIns = new Map<string, AbortController>();
@@ -823,12 +1035,20 @@
             const element = document.getElementById(elementId);
             if (!element) return;
 
+            Utils._escapeSurfaces.add(element);
+
             const controller = new AbortController();
 
             element.addEventListener('keydown', e => {
                 if (e.key !== 'Escape' || e.defaultPrevented) return;
 
+                // An IME cancelling what it was composing is not dismissing the callout the field is in.
+                if (Utils.isComposingKey(e)) return;
+
                 if (Callouts.current.calloutId !== elementId) return;
+
+                // A dialog, a panel or a modal in the content answered the key, and is not one of the open callouts.
+                if (Utils.isNestedSurfaceEscape(e, element)) return;
 
                 dotnetObj.invokeMethodAsync('OnEscape');
             }, { signal: controller.signal });
@@ -840,7 +1060,9 @@
                 // open callouts is read before Blazor's document-level delegation lets a popup the key belongs to
                 // (a dropdown list relocated to the body, holding the focus in its search box) close itself.
                 document.addEventListener('keydown', e => {
-                    if (e.key !== 'Escape') return;
+                    // A press a component claimed (see claimEscape) is that component's, wherever its focus is, and
+                    // one cancelling an IME composition is the composition's.
+                    if (e.key !== 'Escape' || e.defaultPrevented || Utils.isComposingKey(e)) return;
 
                     if (Callouts.current.calloutId !== elementId) return;
 
@@ -862,6 +1084,7 @@
 
             controller.abort();
             Utils._escapes.delete(elementId);
+            Utils.forgetEscapeSurface(elementId);
         }
 
         // The callouts that answer an Escape pressed anywhere in the page (setupEscape with a trigger), not only
@@ -870,9 +1093,108 @@
 
         private static _escapeGuards = new Map<string, AbortController>();
 
-        // The Escapes a guarded surface nested inside another one has already spoken for, so the surfaces it
-        // sits in leave them alone.
-        private static _claimedEscapes = new WeakSet<Event>();
+        // The surface each Escape belongs to: the innermost one it was pressed inside of, of a dialog
+        // (setupSurfaceEscape), an open panel (setupEscapeGuard), a modal (watchEscape) and an open callout's root or
+        // callout (watchNestedEscape). Each records itself as the key bubbles through its root, so the first to see it
+        // is the one it is pressed nearest to. None of them stops a key from bubbling on to the handlers around it -
+        // the page's own keyboard shortcuts keep working while one is open - so this is what tells an outer surface,
+        // and the .NET handler it has hearing the same key, that the press was an inner one's.
+        private static _escapeSurfaceOwners = new WeakMap<Event, Element>();
+
+        // Records the surface as the owner of the Escape unless one nested inside it already is, and says whether one
+        // was: whether the press is a nested surface's rather than this one's.
+        private static claimSurfaceEscape(e: Event, surface: Element) {
+            if (Utils.isNestedSurfaceEscape(e, surface)) return true;
+
+            Utils._escapeSurfaceOwners.set(e, surface);
+            return false;
+        }
+
+        // Whether the Escape belongs to a surface nested inside this one (see _escapeSurfaceOwners). A surface listening on
+        // more than one element of its own - a callout's root and its callout - records whichever one the key is in.
+        private static isNestedSurfaceEscape(e: Event, surface: Element) {
+            const owner = Utils._escapeSurfaceOwners.get(e);
+            return !!owner && owner !== surface;
+        }
+
+        // Tells a surface's .NET keydown handler on the elements, through its OnEscapeVerdict callback, what `verdict`
+        // decides for the Escape it is about to hear - whether it is somebody else's - or nothing, for a null. The
+        // listeners are on the elements, so they run before Blazor's document-level delegation, and the answer is
+        // queued ahead of the keydown Blazor dispatches right after it. The handler takes each answer once
+        // (BitEscapeVerdict), so not every press has to be answered: a true always is, and a false only when the answer
+        // before it was true - and so may never have been taken, its keydown stopped on the way to the handler - or
+        // there has been none since this watch began. Every other press is the handler's own, and it hears it without
+        // a round trip. The elements share that record, as they share the one handler's answer.
+        private static sendEscapeVerdicts(elements: Element[], dotnetObj: DotNetObject, signal: AbortSignal, source: string,
+                                          verdict: (e: KeyboardEvent, element: Element) => boolean | null) {
+            let lastSent: boolean | null = null;
+
+            for (const element of elements) {
+                element.addEventListener('keydown', e => {
+                    const event = e as KeyboardEvent;
+                    if (event.key !== 'Escape') return;
+
+                    const foreign = verdict(event, element);
+                    if (foreign === null || (foreign === false && lastSent === false)) return;
+
+                    lastSent = foreign;
+
+                    dotnetObj.invokeMethodAsync('OnEscapeVerdict', foreign)
+                             .catch(err => console.error(`BitBlazorUI.Utils.${source}:`, err));
+                }, { signal });
+            }
+        }
+
+        private static _nestedEscapeWatches = new Map<string, AbortController>();
+
+        // Records a surface whose .NET keydown handlers act on Escape as the owner of the Escapes pressed inside its
+        // elements (see _escapeSurfaceOwners), and tells those handlers, through its OnEscapeVerdict callback, which ones
+        // are somebody else's: a surface nested inside it owns them, a component inside it claimed them (see
+        // claimEscape) - another callout's anchor among them, which claims its Escape from the render that opens it,
+        // before its own watch is in place - or a popup opened from inside it closes on them (a dropdown whose list is
+        // open while the focus is still on its field, see isEscapeOfOpenCallout, which `id` names the watching callout
+        // to). A BitCallout watches its root (the anchor) and the callout while it is open (Callouts.toggle).
+        public static watchNestedEscape(id: string, elementIds: string[], dotnetObj: DotNetObject) {
+            Utils.unwatchNestedEscape(id);
+
+            const elements = elementIds.map(elementId => document.getElementById(elementId))
+                                       .filter((element): element is HTMLElement => !!element);
+
+            const controller = new AbortController();
+
+            Utils.sendEscapeVerdicts(elements, dotnetObj, controller.signal, 'watchNestedEscape', (e, element) => {
+                const nested = Utils.claimSurfaceEscape(e, element);
+                const claimer = Utils.escapeClaimer(e);
+
+                return nested
+                    || (!!claimer && claimer !== element && element.contains(claimer))
+                    || Utils.isEscapeOfOpenCallout(e.target, id);
+            });
+
+            Utils._nestedEscapeWatches.set(id, controller);
+        }
+
+        public static unwatchNestedEscape(id: string) {
+            const controller = Utils._nestedEscapeWatches.get(id);
+            if (!controller) return;
+
+            Utils._nestedEscapeWatches.delete(id);
+            controller.abort();
+        }
+
+        // Whether the node sits inside a surface nested in the boundary - a dialog, a panel or a modal rendered in its
+        // content - rather than in the boundary itself. A component whose own .NET keydown handlers hear every key
+        // pressed in its content, which no surface stops on its way out, leaves the ones such a surface is hearing
+        // alone (BitDataGrid's cells and rows).
+        public static isInNestedSurface(node: Node | null, boundary: Element) {
+            for (let element = node instanceof Element ? node : node?.parentElement ?? null;
+                 element && element !== boundary;
+                 element = element.parentElement) {
+                if (Utils.isEscapeSurface(element)) return true;
+            }
+
+            return false;
+        }
 
         // Tells a surface that dismisses itself on Escape through a Blazor keydown handler, through its
         // OnEscapeVerdict callback, whether the Escape it is about to hear belongs to something inside it
@@ -882,36 +1204,35 @@
         //   the panel the user was filling in along with the list they meant to close;
         // - a handler that already prevented the key's default;
         // - an IME composition the key cancels;
-        // - a guarded surface nested inside this one, which answers the key itself (or refuses it).
+        // - a surface nested inside this one - a panel, a dialog, a modal, an open callout's anchor - which answers
+        //   the key itself (or refuses it), see _escapeSurfaceOwners.
         // The answer has to be taken while the key is still going down: this listener is on the element, so it
-        // runs before Blazor's document-level delegation lets the nested component close its popup. It is sent
-        // for every Escape rather than read back later, so each keydown carries its own answer: the callback is
-        // queued ahead of the keydown Blazor dispatches right after it, and one Escape can never be answered
-        // with what was recorded for the next - however slow the connection.
+        // runs before Blazor's document-level delegation lets the nested component close its popup (see
+        // sendEscapeVerdicts).
         public static setupEscapeGuard(elementId: string, dotnetObj: DotNetObject) {
             Utils.disposeEscapeGuard(elementId);
 
             const element = document.getElementById(elementId);
             if (!element) return;
 
+            Utils._escapeSurfaces.add(element);
+
             const controller = new AbortController();
 
-            element.addEventListener('keydown', e => {
-                if (e.key !== 'Escape') return;
-
-                const foreign = Utils._claimedEscapes.has(e)
+            Utils.sendEscapeVerdicts([element], dotnetObj, controller.signal, 'setupEscapeGuard', e => {
+                const foreign = Utils.isNestedSurfaceEscape(e, element)
                     || e.defaultPrevented
-                    || e.isComposing || e.keyCode === 229 // the engines that predate isComposing report 229
+                    || Utils.isComposingKey(e)
                     || Utils.isEscapeOfOpenCallout(e.target);
 
                 // A closed surface is inert, so an Escape reaches it only while it is open - and from then on the
                 // key is this surface's to answer or to refuse, never the one's it was opened from.
                 if (element.hasAttribute('inert') === false) {
-                    Utils._claimedEscapes.add(e);
+                    Utils.claimSurfaceEscape(e, element);
                 }
 
-                dotnetObj.invokeMethodAsync('OnEscapeVerdict', foreign);
-            }, { signal: controller.signal });
+                return foreign;
+            });
 
             Utils._escapeGuards.set(elementId, controller);
         }
@@ -922,15 +1243,17 @@
 
             controller.abort();
             Utils._escapeGuards.delete(elementId);
+            Utils.forgetEscapeSurface(elementId);
         }
 
         // Whether the innermost open callout is the one the key closes: it was pressed inside the callout or on
         // the component that opened it, or the callout answers an Escape from anywhere (one opened by hovering).
         // A callout that is only left open - one the focus has moved away from - does not close on an Escape
-        // pressed somewhere else, so it does not take that Escape away from the surface either.
-        private static isEscapeOfOpenCallout(target: EventTarget | null) {
+        // pressed somewhere else, so it does not take that Escape away from the surface either. The callout that is
+        // asking (`ownCalloutId`, see watchNestedEscape) is never one the key belongs to instead of it.
+        private static isEscapeOfOpenCallout(target: EventTarget | null, ownCalloutId?: string | null) {
             const current = Callouts.current;
-            if (!current.calloutId) return false;
+            if (!current.calloutId || current.calloutId === ownCalloutId) return false;
 
             if (Utils._escapesFromAnywhere.has(current.calloutId)) return true;
 
@@ -961,7 +1284,9 @@
         // ask about later, so two quick presses cannot overwrite each other's answer, and .NET is only called
         // for a press that is the surface's.
         // A surface nested inside another one - a modal opened from inside a modal, rendered inside its
-        // content - takes the presses made inside it, and the outer one leaves them alone.
+        // content, a dialog, a panel or an open callout's anchor in it - takes the presses made inside it, and the
+        // outer one leaves them alone (see _escapeSurfaceOwners). The modal's own handler, which reports the key, is told
+        // the same through OnEscapeVerdict (sendEscapeVerdicts).
         public static watchEscape(elementId: string, dotnetObj: DotNetObject) {
             Utils.unwatchEscape(elementId);
 
@@ -976,10 +1301,13 @@
             element.addEventListener('keydown', e => {
                 if (e.key !== 'Escape') return;
 
-                if (e.isComposing || Callouts.isOpenedFrom(element)) {
+                if (Utils.isComposingKey(e) || Callouts.isOpenedFrom(element)) {
                     claimed.add(e);
                 }
             }, { signal: controller.signal, capture: true });
+
+            Utils.sendEscapeVerdicts([element], dotnetObj, controller.signal, 'watchEscape',
+                                     e => Utils.claimSurfaceEscape(e, element));
 
             window.addEventListener('keydown', e => {
                 if (e.key !== 'Escape') return;
@@ -989,7 +1317,7 @@
 
                 if (Utils.nearestEscapeRoot(target) !== element) return;
 
-                if (claimed.has(e) || e.defaultPrevented) return;
+                if (claimed.has(e) || e.defaultPrevented || Utils.isNestedSurfaceEscape(e, element)) return;
 
                 dotnetObj.invokeMethodAsync('OnEscape');
             }, { signal: controller.signal });
@@ -1041,7 +1369,7 @@
             window.addEventListener('keydown', e => {
                 if (e.key !== 'Escape') return;
 
-                if (e.isComposing || Callouts.current.calloutId) {
+                if (Utils.isComposingKey(e) || Callouts.current.calloutId) {
                     claimed.add(e);
                 }
             }, { signal: controller.signal, capture: true });
@@ -1138,9 +1466,9 @@
         // renders around the consumer's own button - which takes no focus of its own, so the first focusable element
         // inside it is where the focus goes back to.
         private static focusTrigger(trigger: HTMLElement) {
-            const target = trigger.matches(Utils._focusables) && Utils.isFocusable(trigger)
+            const target = Utils.isFocusableElement(trigger)
                 ? trigger
-                : Array.from(trigger.querySelectorAll<HTMLElement>(Utils._focusables)).find(Utils.isFocusable);
+                : Utils.firstFocusable(trigger);
 
             (target ?? trigger).focus();
         }
@@ -1161,14 +1489,11 @@
         private static findFocusableAfter(anchor: HTMLElement, exclude: HTMLElement) {
             const scope = Utils.findTabScope(anchor);
 
-            const candidates = Array.from((scope ?? document).querySelectorAll<HTMLElement>(Utils._focusables)).filter(el =>
-                !anchor.contains(el)
-                && !exclude.contains(el)
-                && Utils.isFocusable(el));
+            const skip = (el: HTMLElement) => anchor.contains(el) || exclude.contains(el);
 
-            const next = candidates.find(el => (anchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+            const next = Utils.findFocusable(scope ?? document, anchor, true, skip);
 
-            return next ?? (scope ? candidates[0] ?? null : null);
+            return next ?? (scope ? Utils.firstFocusable(scope, skip) : null);
         }
 
         // The nearest ancestor of the element that keeps the keyboard inside itself, or null when it is in the
@@ -1652,6 +1977,20 @@
             }
         }
 
+        // Whether the element is laid out right to left. A component whose Dir is unset inherits the direction of
+        // the page and one whose Dir is Auto takes it from its content, so neither is known to .NET; the computed
+        // style resolves both, the dir attribute of every ancestor included.
+        public static isRtl(element: HTMLElement): boolean {
+            if (!element) return false;
+
+            try {
+                return getComputedStyle(element).direction === 'rtl';
+            } catch (e) {
+                console.error("BitBlazorUI.Utils.isRtl:", e);
+                return false;
+            }
+        }
+
         // Scrolls a scroll container to an absolute offset on its scrolling axis. The axis is passed in
         // rather than guessed, since a container can be scrollable on both and only the component knows
         // which one its items are laid out along. The offset is measured from the start edge the content
@@ -1982,25 +2321,104 @@
         // Everything that can hold the focus inside a container. A roving tabindex takes every item of a grid
         // but one out of the tab sequence, which is why tabindex="-1" is excluded here. The controls a header
         // or footer template brings along are part of the container too, so the whole set of natively
-        // focusable elements is listed rather than only the ones the components render themselves.
-        private static readonly _focusables =
+        // focusable elements is listed rather than only the ones the components render themselves - a
+        // disclosure's summary and a media player's controls included, which a trap that missed them would
+        // let the Tab out of the container from. Only the first summary of a details element is its disclosure
+        // control; any other summary is plain content the browser never puts in the tab sequence.
+        // This is the library's one definition of "what can hold the focus": every script asks it, through
+        // the helpers below, rather than keeping a copy of its own that a fix here would not reach - the
+        // scripts of Bit.BlazorUI.Extras included, which call these members through the ambient declaration
+        // of Scripts/BitBlazorUI.d.ts (BitFocusablesContractTests keeps the two in step).
+        public static readonly focusableSelector =
             'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"]), ' +
             'input:not([disabled]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), ' +
-            'textarea:not([disabled]):not([tabindex="-1"]), ' +
+            'textarea:not([disabled]):not([tabindex="-1"]), details > summary:first-of-type:not([tabindex="-1"]), ' +
+            'iframe:not([tabindex="-1"]), audio[controls]:not([tabindex="-1"]), video[controls]:not([tabindex="-1"]), ' +
             '[contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), ' +
             '[tabindex]:not([tabindex="-1"])';
 
         // Whether an element matching the set above is a place the focus can actually land. It is the one
         // answer both the initial focus and the focus trap ask for, so the element the focus is moved to
         // when a popup opens is the same one Shift+Tab wraps back to from the end of it.
+        // An inert subtree refuses the focus while still matching the selector and keeping its box - a
+        // surface playing its exit animation, a folded splitter panel - and so does a control disabled by
+        // the fieldset around it, which carries no disabled attribute of its own for the selector to see.
+        // Inside an editing host only the host itself is a tab stop; the links and controls of the content
+        // being edited are text to the browser, and counting one as the last stop of a trap would let the
+        // Tab from the host walk out of it.
         // A hidden element has no box at all - which is how a display:none subtree (e.g. a collapsed
-        // section) is skipped without measuring every ancestor - and visibility:hidden leaves a box the
-        // focus still cannot land in, so it is asked about separately, and only for the elements that got
-        // past the cheap measurement.
-        private static isFocusable(el: HTMLElement) {
-            const hasBox = el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0;
+        // section) is skipped without measuring every ancestor. A subtree whose content the engine skips -
+        // hidden="until-found" (a HiddenUntilFound accordion panel), content-visibility:hidden - can still
+        // hand its descendants a box the focus never reaches; checkVisibility sees both, and the box alone is
+        // asked for only in the engines without it. visibility:hidden leaves a box the focus still cannot
+        // land in, so it is asked about separately, and only for the elements that got past the measurement.
+        // A negative tabindex takes an element out of the tab sequence however it is written ("-2", " -1"), which
+        // the selector's exact match on "-1" cannot see, so the attribute is parsed the way the browser parses it.
+        public static isFocusable(el: HTMLElement) {
+            return Utils.isInTabSequence(el) && Utils.canHoldFocus(el);
+        }
 
-            return hasBox && getComputedStyle(el).visibility !== 'hidden';
+        // The attribute rather than the tabIndex property, which also reads -1 for an element that carries no
+        // tabindex at all (an editing host in some engines), so only a value written on the element counts. An
+        // unparsable value is ignored, as it is by the browser.
+        private static isInTabSequence(el: HTMLElement) {
+            const tabindex = el.getAttribute('tabindex');
+
+            return tabindex === null || (parseInt(tabindex, 10) < 0) === false;
+        }
+
+        // Whether the focus can be moved onto the element at all, by the keyboard or by a script.
+        private static canHoldFocus(el: HTMLElement) {
+            if (el.closest('[inert]') !== null || el.matches(':disabled') || el.parentElement?.isContentEditable === true) return false;
+
+            const rendered = typeof el.checkVisibility === 'function'
+                ? el.checkVisibility()
+                : el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0;
+
+            return rendered && getComputedStyle(el).visibility !== 'hidden';
+        }
+
+        // Whether any element - not only one taken from the selector above - is a place the focus can land: the
+        // element a caller holds may be a plain container, which isFocusable alone would accept for its box.
+        public static isFocusableElement(el: HTMLElement) {
+            return el.matches(Utils.focusableSelector) && Utils.isFocusable(el);
+        }
+
+        // The elements inside the container the focus can land on, in document order.
+        public static getFocusables(container: ParentNode): HTMLElement[] {
+            return Array.from(container.querySelectorAll<HTMLElement>(Utils.focusableSelector)).filter(Utils.isFocusable);
+        }
+
+        // The first element inside the container the focus can land on, leaving out the ones the skip callback
+        // names, and measuring no more of them than it takes.
+        public static firstFocusable(container: ParentNode, skip?: (el: HTMLElement) => boolean): HTMLElement | null {
+            const all = container.querySelectorAll<HTMLElement>(Utils.focusableSelector);
+
+            for (let i = 0; i < all.length; i++) {
+                if (skip?.(all[i]) !== true && Utils.isFocusable(all[i])) return all[i];
+            }
+
+            return null;
+        }
+
+        // The nearest element inside the scope the focus can land on that follows (or, backwards, precedes) the
+        // given node in the document, leaving out the ones the skip callback names - which is where a node's own
+        // descendants are left out, as they follow it too. Only the elements on the far side of the node are
+        // measured, and no more of them than it takes, which matters when the scope is the whole document.
+        public static findFocusable(scope: ParentNode, from: Node, forward: boolean, skip?: (el: HTMLElement) => boolean): HTMLElement | null {
+            const all = scope.querySelectorAll<HTMLElement>(Utils.focusableSelector);
+            const side = forward ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+            const step = forward ? 1 : -1;
+
+            for (let i = forward ? 0 : all.length - 1; i >= 0 && i < all.length; i += step) {
+                const el = all[i];
+
+                if ((from.compareDocumentPosition(el) & side) === 0) continue;
+
+                if (skip?.(el) !== true && Utils.isFocusable(el)) return el;
+            }
+
+            return null;
         }
 
         // Keeps Tab and Shift+Tab cycling inside a container, which is what a popup that reports itself a modal
@@ -2012,8 +2430,7 @@
 
             // A hidden element is not a place the focus can land, and a callout carries parts that are only
             // rendered for some of its states.
-            const focusables = Array.from(root.querySelectorAll<HTMLElement>(Utils._focusables))
-                .filter(Utils.isFocusable);
+            const focusables = Utils.getFocusables(root);
 
             const active = document.activeElement;
 

@@ -1,7 +1,8 @@
 ﻿@import '../../../Bit.BlazorUI/Styles/functions.scss';
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root (or on an
-// ancestor) re-tunes every editor under it and one set on the Style of an instance that one alone:
+// ancestor) re-tunes every editor under it and one set on the Style of an instance that one and the editors nested in
+// it:
 //   --bit-MarkdownEditor-color                     text of the editor                          (default: $clr-fg-pri)
 //   --bit-MarkdownEditor-background                background of the editor                    (default: $clr-bg-pri)
 //   --bit-MarkdownEditor-border-color              outer border                                (default: $clr-brd-pri)
@@ -18,7 +19,11 @@
 //   --bit-MarkdownEditor-font-size                 font size of the textarea                   (default: $tg-fs-sm)
 //   --bit-MarkdownEditor-line-height               line height of the textarea                 (default: 1.6)
 //   --bit-MarkdownEditor-padding                   padding of the textarea                     (default: spacing(1.5) spacing(1.75))
-//   --bit-MarkdownEditor-placeholder-color         placeholder of the textarea                 (default: $clr-fg-sec)
+//   --bit-MarkdownEditor-placeholder-color         placeholder of the textarea and the find box (default: $clr-fg-sec)
+//   --bit-MarkdownEditor-label-color               text of the label                           (default: --bit-MarkdownEditor-color)
+//   --bit-MarkdownEditor-label-font-size           size of the label                           (default: $tg-fs-sm)
+//   --bit-MarkdownEditor-label-font-weight         weight of the label                         (default: $tg-field-label-font-weight)
+//   --bit-MarkdownEditor-label-letter-spacing      tracking of the label                       (default: $tg-ctrl-letter-spacing)
 //   --bit-MarkdownEditor-preview-padding           padding of the preview pane                 (default: spacing(1.5) spacing(2))
 //   --bit-MarkdownEditor-preview-background        background of the preview pane              (default: transparent)
 //   --bit-MarkdownEditor-toolbar-background        background of the toolbar and find panel    (default: $clr-bg-sec)
@@ -32,6 +37,9 @@
 //   --bit-MarkdownEditor-button-active-background  background of a pressed (active) button     (default: $clr-pri)
 //   --bit-MarkdownEditor-statusbar-color           text of the status bar                      (default: $clr-fg-sec)
 //   --bit-MarkdownEditor-statusbar-background      background of the status bar                (default: $clr-bg-sec)
+//
+// Everything but the textarea and the shortcuts of the help dialog is set in the theme's font ($tg-font-family,
+// $tg-fw-regular), which the root sets and its own buttons and inputs take from it.
 
 $mde-color: var(--bit-MarkdownEditor-color, #{$clr-fg-pri});
 $mde-background: var(--bit-MarkdownEditor-background, #{$clr-bg-pri});
@@ -40,6 +48,9 @@ $mde-border-width: var(--bit-MarkdownEditor-border-width, #{$shp-border-width});
 $mde-radius: var(--bit-MarkdownEditor-border-radius, #{$shp-radius-surface});
 $mde-divider: var(--bit-MarkdownEditor-divider-color, #{$clr-brd-sec});
 $mde-focus: var(--bit-MarkdownEditor-focus-color, #{$clr-pri-focus});
+// The same color less its fallback, for the focus rings: while it is unset they are the global
+// --bit-shd-focus-ring (see focus-ring-own and focus-ring-color).
+$mde-focus-ring: focus-ring-color($mde-focus);
 $mde-error: var(--bit-MarkdownEditor-error-color, #{$clr-err});
 $mde-bar-background: var(--bit-MarkdownEditor-toolbar-background, #{$clr-bg-sec});
 $mde-button-color: var(--bit-MarkdownEditor-button-color, #{$clr-fg-sec});
@@ -49,13 +60,7 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 
 // A ring drawn inside the element, for the parts that fill a pane whose overflow would clip one drawn outside.
 @mixin mde-inset-ring($color: $mde-focus) {
-    outline: none;
-    box-shadow: inset 0 0 0 $shp-focus-ring-width #{$color};
-
-    @media (forced-colors: active) {
-        outline: #{$shp-focus-ring-width} solid Highlight;
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
-    }
+    @include focus-ring-inset($color);
 }
 
 .bit-mde {
@@ -65,6 +70,8 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     box-sizing: border-box;
     flex-direction: column;
     color: $mde-color;
+    font-family: $tg-font-family;
+    font-weight: $tg-fw-regular;
     background: $mde-background;
     border-radius: $mde-radius;
     border: $mde-border-width $shp-border-style $mde-border-color;
@@ -127,6 +134,10 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
         color: $clr-fg-dis;
     }
 
+    .bit-mde-txa {
+        @include input-placeholder($clr-fg-dis);
+    }
+
     .bit-mde-lbl {
         cursor: default;
     }
@@ -142,18 +153,25 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     border-bottom: $shp-border-width $shp-border-style $mde-divider;
 }
 
+// A <button> or an <input> takes its font from the browser rather than from its parent, so every one of the
+// editor's own reads the root's.
 .bit-mde-btn {
     padding: 0;
     cursor: pointer;
+    font-family: inherit;
+    font-weight: inherit;
     align-items: center;
     display: inline-flex;
-    background: transparent;
+    --bit-mde-btn-sfg: initial;
+    --bit-mde-btn-sbg: initial;
+    --bit-mde-btn-sbr: initial;
+    background: var(--bit-mde-btn-sbg, transparent);
     justify-content: center;
-    color: $mde-button-color;
+    color: var(--bit-mde-btn-sfg, #{$mde-button-color});
     border-radius: $mde-button-radius;
     width: var(--bit-MarkdownEditor-button-size, #{$siz-ctrl-md});
     height: var(--bit-MarkdownEditor-button-size, #{$siz-ctrl-md});
-    border: $shp-border-width $shp-border-style transparent;
+    border: $shp-border-width $shp-border-style var(--bit-mde-btn-sbr, transparent);
     transition: background-color $mot-duration-short $mot-easing, color $mot-duration-short $mot-easing, border-color $mot-duration-short $mot-easing;
 
     svg {
@@ -166,10 +184,12 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
         font-size: $siz-icon-md;
     }
 
+    // The hover moves the variables the button is painted from rather than its colors, so a button the app paints
+    // through a class keeps that paint under the pointer. The pressed look reads them too, as the hover outranks it.
     &:hover:not(:disabled) {
-        border-color: $mde-divider;
-        color: var(--bit-MarkdownEditor-button-hover-color, #{$clr-fg-pri});
-        background: var(--bit-MarkdownEditor-button-hover-background, #{$clr-bg-sec-hover});
+        --bit-mde-btn-sbr: #{$mde-divider};
+        --bit-mde-btn-sfg: var(--bit-MarkdownEditor-button-hover-color, #{$clr-fg-pri});
+        --bit-mde-btn-sbg: var(--bit-MarkdownEditor-button-hover-background, #{$clr-bg-sec-hover});
     }
 
     &:active:not(:disabled) {
@@ -177,13 +197,13 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     }
 
     &:focus-visible {
-        @include focus-ring($mde-focus);
+        @include focus-ring-own($mde-focus-ring);
     }
 
     &.bit-mde-act {
-        color: $mde-button-active-color;
-        background: $mde-button-active-background;
-        border-color: $mde-button-active-background;
+        color: var(--bit-mde-btn-sfg, #{$mde-button-active-color});
+        background: var(--bit-mde-btn-sbg, #{$mde-button-active-background});
+        border-color: var(--bit-mde-btn-sbr, #{$mde-button-active-background});
     }
 
     &:disabled {
@@ -308,6 +328,8 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 
 .bit-mde-fni {
     min-width: 0;
+    font-family: inherit;
+    font-weight: inherit;
     flex: 1 1 spacing(15);
     color: $clr-fg-pri;
     font-size: $tg-fs-sm;
@@ -317,6 +339,7 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     padding: $siz-ctrl-pad-y-sm $siz-ctrl-pad-x-sm;
     border-radius: $shp-radius-control;
     border: $shp-border-width $shp-border-style $clr-brd-pri;
+    @include input-placeholder(var(--bit-MarkdownEditor-placeholder-color, #{$clr-fg-sec}));
 
     &:focus-visible {
         @include mde-inset-ring;
@@ -325,8 +348,11 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 
 .bit-mde-fnb {
     cursor: pointer;
+    font-family: inherit;
+    font-weight: inherit;
     color: $clr-fg-pri;
-    background: $clr-bg-pri;
+    --bit-mde-fnb-sbg: initial;
+    background: var(--bit-mde-fnb-sbg, #{$clr-bg-pri});
     font-size: $tg-fs-xs;
     box-sizing: border-box;
     text-transform: $tg-ctrl-text-transform;
@@ -340,16 +366,16 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     transition: background-color $mot-duration-short $mot-easing, color $mot-duration-short $mot-easing;
 
     &:hover:not(:disabled) {
-        background: $clr-bg-sec-hover;
+        --bit-mde-fnb-sbg: #{$clr-bg-sec-hover};
     }
 
     &:focus-visible {
-        @include focus-ring($mde-focus);
+        @include focus-ring-own($mde-focus-ring);
     }
 
     &.bit-mde-act {
         color: $mde-button-active-color;
-        background: $mde-button-active-background;
+        background: var(--bit-mde-fnb-sbg, #{$mde-button-active-background});
         border-color: $mde-button-active-background;
     }
 
@@ -404,9 +430,13 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     min-height: 0;
 }
 
+// A wrapping body is a multi-line flex container, whose lines are as tall as what they hold rather than as the
+// body: the cap is what keeps a pane holding more than the body shows to the body's height, so it scrolls (and
+// the two scroll together) instead of running on under the body's clipped edge.
 .bit-mde-pne {
     min-width: 0;
     min-height: 0;
+    max-height: 100%;
     overflow: auto;
     box-sizing: border-box;
     flex: 1 1 var(--bit-MarkdownEditor-pane-min-width, 18rem);
@@ -437,6 +467,12 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     margin-inline-start: calc(-1 * #{$shp-border-width});
     border-block-start: $shp-border-width $shp-border-style $mde-divider;
     border-inline-start: $shp-border-width $shp-border-style $mde-divider;
+
+    // The ring is drawn inside the divider: an outline is laid from the border edge in, and the divider lying
+    // on the body's edge is the one the overflow clips, so a ring drawn on it would lose that side.
+    &:focus-visible {
+        @include focus-ring-inset($mde-focus, $offset: $shp-border-width);
+    }
 }
 
 .bit-mde-txa {
@@ -457,10 +493,7 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     padding: var(--bit-MarkdownEditor-padding, #{spacing(1.5) spacing(1.75)});
     font-family: var(--bit-MarkdownEditor-font-family, #{$tg-font-family-mono});
 
-    &::placeholder {
-        opacity: 1;
-        color: var(--bit-MarkdownEditor-placeholder-color, #{$clr-fg-sec});
-    }
+    @include input-placeholder(var(--bit-MarkdownEditor-placeholder-color, #{$clr-fg-sec}));
 
     // The textarea fills its pane, so an inset ring keeps the keyboard
     // focus indicator visible instead of being clipped by the container.
@@ -492,10 +525,10 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 .bit-mde-lbl {
     display: block;
     cursor: pointer;
-    color: inherit;
-    font-size: $tg-fs-sm;
-    font-weight: $tg-fw-semibold;
-    letter-spacing: $tg-ctrl-letter-spacing;
+    color: var(--bit-MarkdownEditor-label-color, #{$mde-color});
+    font-size: var(--bit-MarkdownEditor-label-font-size, #{$tg-fs-sm});
+    font-weight: var(--bit-MarkdownEditor-label-font-weight, #{$tg-field-label-font-weight});
+    letter-spacing: var(--bit-MarkdownEditor-label-letter-spacing, #{$tg-ctrl-letter-spacing});
     padding: spacing(0.75) spacing(1) 0;
 }
 
@@ -583,8 +616,8 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 
     h2 {
         margin: 0;
-        font-size: $tg-fs-md;
-        font-weight: $tg-fw-semibold;
+        font-size: $tg-dialog-title-font-size;
+        font-weight: $tg-dialog-title-font-weight;
     }
 
     dl {
@@ -618,6 +651,7 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
 
 .bit-mde-hcl {
     padding: 0;
+    font-family: inherit;
     border: none;
     line-height: 1;
     cursor: pointer;
@@ -626,17 +660,18 @@ $mde-button-active-background: var(--bit-MarkdownEditor-button-active-background
     justify-content: center;
     min-width: spacing(3);
     min-height: spacing(3);
-    color: $clr-fg-sec;
+    --bit-mde-hcl-sfg: initial;
+    color: var(--bit-mde-hcl-sfg, #{$clr-fg-sec});
     background: transparent;
     font-size: $tg-fs-xl;
     border-radius: $mde-button-radius;
 
     &:hover {
-        color: $clr-fg-pri;
+        --bit-mde-hcl-sfg: #{$clr-fg-pri};
     }
 
     &:focus-visible {
-        @include focus-ring($mde-focus);
+        @include focus-ring-own($mde-focus-ring);
     }
 }
 

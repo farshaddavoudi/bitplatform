@@ -1410,11 +1410,9 @@
         private static containFullScreenTab(root: HTMLElement, e: KeyboardEvent) {
             if (e.key !== 'Tab' || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
             if (!root.classList.contains('bit-rte-fsc')) return;
-            const focusable = (Array.from(root.querySelectorAll(
-                'button,select,input,textarea,[contenteditable="true"],[tabindex]')) as HTMLElement[])
-                // A contenteditable host reports a tabIndex of -1 in some engines while still being a tab stop.
-                .filter(el => (el.isContentEditable && !el.hasAttribute('tabindex') ? 0 : el.tabIndex) >= 0
-                    && !(el as HTMLButtonElement).disabled && !el.hidden && el.getClientRects().length > 0);
+            // The shared definition reads the attributes, never tabIndex: a contenteditable host reports a tabIndex of -1
+            // in some engines while still being a tab stop.
+            const focusable = Utils.getFocusables(root);
             if (focusable.length === 0) return;
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
@@ -1633,7 +1631,9 @@
             if (!input || input._slashKeysBound) return;
             input._slashKeysBound = true;
             input.addEventListener('keydown', (e: KeyboardEvent) => {
-                if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter' || e.key === 'Escape') {
+                // Escape is not among them: the input claims the plain one (data-bit-esc, see Utils.claimEscape),
+                // which prevents its default, and one with a modifier goes on to a dialog the editor sits in.
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
                     e.preventDefault();
                 }
             });

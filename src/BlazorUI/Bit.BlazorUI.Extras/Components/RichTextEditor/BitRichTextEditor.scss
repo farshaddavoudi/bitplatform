@@ -1,8 +1,8 @@
 ﻿@import '../../../Bit.BlazorUI/Styles/functions.scss';
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root (or on an
-// ancestor) re-tunes every editor under it and one set on the Style of an instance that one alone. The
-// floating parts (the selection toolbar, the slash and mention menus) are rendered inside the root, so they
+// ancestor) re-tunes every editor under it and one set on the Style of an instance that one and the editors nested in
+// it. The floating parts (the selection toolbar, the slash and mention menus) are rendered inside the root, so they
 // inherit them too:
 //   --bit-RichTextEditor-color                     text of the editor                              (default: $clr-fg-pri)
 //   --bit-RichTextEditor-background                background of the editor                        (default: $clr-bg-pri)
@@ -18,7 +18,8 @@
 //   --bit-RichTextEditor-font-family               font of the content                             (default: inherit)
 //   --bit-RichTextEditor-font-size                 font size of the content                        (default: inherit)
 //   --bit-RichTextEditor-line-height               line height of the content                      (default: 1.6)
-//   --bit-RichTextEditor-placeholder-color         placeholder of the editing surface              (default: $clr-fg-sec)
+//   --bit-RichTextEditor-placeholder-color         placeholder of the editing surface and of the
+//                                                  fields of its panels                            (default: $clr-fg-sec)
 //   --bit-RichTextEditor-link-color                links in the content                            (default: $clr-pri)
 //   --bit-RichTextEditor-code-background           code spans and code blocks                      (default: $clr-bg-sec)
 //   --bit-RichTextEditor-quote-border-color        leading rule of a block quote                   (default: $clr-brd-pri)
@@ -43,6 +44,9 @@ $rte-background: var(--bit-RichTextEditor-background, #{$clr-bg-pri});
 $rte-border-color: var(--bit-RichTextEditor-border-color, #{$clr-brd-pri});
 $rte-divider: var(--bit-RichTextEditor-divider-color, #{$clr-brd-sec});
 $rte-focus: var(--bit-RichTextEditor-focus-color, #{$clr-pri-focus});
+// The same color less its fallback, for the focus rings: while it is unset they are the global
+// --bit-shd-focus-ring (see focus-ring-own and focus-ring-color).
+$rte-focus-ring: focus-ring-color($rte-focus);
 $rte-error: var(--bit-RichTextEditor-error-color, #{$clr-err});
 $rte-padding: var(--bit-RichTextEditor-padding, #{spacing(1.75) spacing(2)});
 $rte-bar-background: var(--bit-RichTextEditor-toolbar-background, #{$clr-bg-sec});
@@ -55,13 +59,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
 
 // A ring drawn inside the element, for the parts that fill the frame, whose clipping would cut one drawn outside.
 @mixin rte-inset-ring($color: $rte-focus) {
-    outline: none;
-    box-shadow: inset 0 0 0 $shp-focus-ring-width #{$color};
-
-    @media (forced-colors: active) {
-        outline: #{$shp-focus-ring-width} solid Highlight;
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
-    }
+    @include focus-ring-inset($color);
 }
 
 // The small fields of the tool panels and menus.
@@ -73,6 +71,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     height: $siz-ctrl-sm;
     border-radius: $shp-radius-control;
     border: $shp-border-width $shp-border-style $clr-brd-pri;
+    @include input-placeholder(var(--bit-RichTextEditor-placeholder-color, #{$clr-fg-sec}));
 
     &:focus-visible {
         @include focus-ring($rte-focus, 0);
@@ -136,7 +135,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     display: block;
     color: inherit;
     font-size: $tg-fs-sm;
-    font-weight: $tg-fw-semibold;
+    font-weight: $tg-field-label-font-weight;
     letter-spacing: $tg-ctrl-letter-spacing;
     padding: spacing(0.75) spacing(1) spacing(0.5);
 }
@@ -190,7 +189,8 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     display: inline-flex;
     justify-content: center;
     box-sizing: border-box;
-    background: transparent;
+    --bit-rte-btn-sbg: initial;
+    background: var(--bit-rte-btn-sbg, transparent);
     height: $rte-button-size;
     min-width: $rte-button-size;
     border-radius: $rte-button-radius;
@@ -209,19 +209,32 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
         transform: scaleX(-1);
     }
 
+    // An engine without :dir() drops the rule above, so it reads the class an explicit Dir renders on the editor
+    // instead. Only there: the buttons are deep inside the editor, so a descendant selector would also turn the
+    // icons of an editor nested in this one that reads the other way, which :dir() gets right wherever it is
+    // supported.
+    @supports not selector(:dir(rtl)) {
+        .bit-rte.bit-rtl & svg.bit-rte-flip {
+            transform: scaleX(-1);
+        }
+    }
+
+    // The states move the variable the button is painted from rather than its background, so a button the app
+    // paints through a class keeps that paint under the pointer and while pressed. Every rule that paints the button
+    // at rest and that the states outrank (the toggled look, the panels' text buttons) reads it.
     &:hover:not(:disabled) {
-        background: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
+        --bit-rte-btn-sbg: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
     }
 
     // The press itself, so a click that only toggles a state elsewhere (a format applied to the selection) is felt.
     &:active:not(:disabled) {
-        background: $clr-bg-sec-active;
+        --bit-rte-btn-sbg: #{$clr-bg-sec-active};
     }
 
     &.bit-rte-act {
         color: $rte-button-active-color;
         border-color: $rte-button-active-color;
-        background: $rte-button-active-background;
+        background: var(--bit-rte-btn-sbg, #{$rte-button-active-background});
     }
 
     &:disabled {
@@ -230,7 +243,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     }
 
     &:focus-visible {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 }
 
@@ -241,7 +254,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     padding: 0 $siz-ctrl-pad-x-sm;
     text-transform: $tg-ctrl-text-transform;
     border-color: $clr-brd-pri;
-    background: $clr-bg-pri;
+    background: var(--bit-rte-btn-sbg, #{$clr-bg-pri});
 }
 
 .bit-rte-sel {
@@ -259,13 +272,15 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     padding: 0 spacing(0.5);
     height: $rte-button-size;
     border-radius: $rte-button-radius;
+    --bit-rte-color-sbg: initial;
+    background: var(--bit-rte-color-sbg);
 
     &:hover {
-        background: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
+        --bit-rte-color-sbg: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
     }
 
     &:has(input:focus-visible) {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 
     svg {
@@ -315,7 +330,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     border: $shp-border-width $shp-border-style $clr-brd-pri;
 
     &:focus-visible {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 
     // The color under the caret: a ring in the active color, clear of the swatch so the swatch itself still shows.
@@ -392,18 +407,19 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     padding: 0;
     cursor: pointer;
     font-size: $tg-fs-lg;
-    background: transparent;
+    --bit-rte-emoji-sbg: initial;
+    background: var(--bit-rte-emoji-sbg, transparent);
     width: $rte-button-size;
     height: $rte-button-size;
     border-radius: $rte-button-radius;
     border: $shp-border-width $shp-border-style transparent;
 
     &:hover {
-        background: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
+        --bit-rte-emoji-sbg: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
     }
 
     &:focus-visible {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 }
 
@@ -439,7 +455,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     border-radius: $shp-radius-control;
 
     &:focus-visible {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 }
 
@@ -889,13 +905,15 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     text-align: start;
     color: $clr-fg-pri;
     font-size: $tg-fs-sm;
-    background: transparent;
+    --bit-rte-slash-sbg: initial;
+    background: var(--bit-rte-slash-sbg, transparent);
     min-height: $siz-item-md;
     padding: spacing(0.5) spacing(1);
     border-radius: $shp-radius-control;
 
+    // The selected row comes later at the same weight and still wins over the hover, so it paints on its own.
     &:hover {
-        background: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
+        --bit-rte-slash-sbg: var(--bit-RichTextEditor-button-hover-background, #{$clr-bg-sec-hover});
     }
 
     &.bit-rte-slash-item-sel {
@@ -904,7 +922,7 @@ $rte-rule-color: var(--bit-RichTextEditor-table-border-color, #{$clr-brd-pri});
     }
 
     &:focus-visible {
-        @include focus-ring($rte-focus);
+        @include focus-ring-own($rte-focus-ring);
     }
 }
 

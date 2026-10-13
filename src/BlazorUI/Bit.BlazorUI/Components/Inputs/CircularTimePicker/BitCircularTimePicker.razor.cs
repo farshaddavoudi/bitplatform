@@ -42,6 +42,7 @@ public partial class BitCircularTimePicker : BitInputBase<TimeSpan?>
     private BitCircularTimePickerView _view = BitCircularTimePickerView.Hour;
     private CultureInfo _culture = CultureInfo.CurrentUICulture;
     private DotNetObjectReference<BitCircularTimePicker> _dotnetObj = default!;
+    private Dictionary<string, object>? _calloutHtmlAttributes;
 
 
 
@@ -160,6 +161,11 @@ public partial class BitCircularTimePicker : BitInputBase<TimeSpan?>
     /// Capture and render additional attributes in addition to the main callout's parameters
     /// </summary>
     [Parameter] public Dictionary<string, object> CalloutHtmlAttributes { get; set; } = [];
+
+    // The callout attributes the BitCircularTimePickerParams of this pass cascades, which those of
+    // CalloutHtmlAttributes win over. Held apart from that dictionary, which is the app's own and never written into,
+    // and dropped on every pass so a params object that stops supplying one leaves nothing of it behind.
+    internal Dictionary<string, object>? CascadedCalloutHtmlAttributes { get; set; }
 
     /// <summary>
     /// Custom CSS classes for different parts of the TimePicker component.
@@ -803,7 +809,11 @@ public partial class BitCircularTimePicker : BitInputBase<TimeSpan?>
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(BitCircularTimePickerParams))]
     protected override void OnParametersSet()
     {
+        CascadedCalloutHtmlAttributes = null;
+
         CascadingParameters?.UpdateParameters(this);
+
+        _calloutHtmlAttributes = MergeAttributes(CalloutHtmlAttributes, CascadedCalloutHtmlAttributes);
 
         base.OnParametersSet();
     }
@@ -841,7 +851,7 @@ public partial class BitCircularTimePicker : BitInputBase<TimeSpan?>
             // so a picker that never becomes a sheet does not get a gesture that would close it out of nowhere.
             if (Responsive && Standalone is false)
             {
-                await _js.BitSwipesSetup(_calloutId, 0.25m, BitPlacement.Top, Dir is BitDir.Rtl, BitSwipeOrientation.Vertical, _dotnetObj);
+                await _js.BitSwipesSetup(_calloutId, 0.25m, BitPlacement.Top, ExplicitRtl, BitSwipeOrientation.Vertical, _dotnetObj);
 
                 // The setup is a round trip, so the picker can be gone by the time it comes back - at a point
                 // where DisposeAsync had nothing to tear down yet. The gesture it registered would outlive the
@@ -1653,7 +1663,7 @@ public partial class BitCircularTimePicker : BitInputBase<TimeSpan?>
             isCalloutOpen: IsOpen,
             responsiveMode: Responsive ? BitResponsiveMode.Top : BitResponsiveMode.None,
             dropDirection: DropDirection,
-            isRtl: Dir is BitDir.Rtl,
+            isRtl: ExplicitRtl,
             scrollContainerId: "",
             scrollOffset: 0,
             headerId: CalloutHeaderTemplate is not null ? _headerId : "",

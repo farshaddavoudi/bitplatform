@@ -1478,8 +1478,6 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
         return [.. suggestions];
     }
 
-    private bool IsRtl => Dir == BitDir.Rtl;
-
     /// <summary>
     /// How many of the tags are actually drawn: all of them unless <see cref="MaxDisplayedTags"/> folded
     /// the rest away and the chip standing for them has not been used to unfold the list.
@@ -1570,6 +1568,24 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
     {
         return Format(MoreTagsAriaLabelFormat ?? "Show {0} more tags", hidden.ToString(System.Globalization.CultureInfo.CurrentCulture));
     }
+
+    // Whether a plain Escape on the input acts at all: it takes back the text being typed while there is any.
+    private bool HandlesEscape => Disabled is false && ReadOnly is false && NoClearOnEscape is false;
+
+    // Whether a plain Escape with nothing typed clears the tags, the one rule HandleOnKeyDown and EscapeClaim both
+    // go by: only where the clear button it stands in for is drawn, and never for a value bound one way, which
+    // refuses the list that is left. The render passes the HasRemovableTag it has already worked out for the
+    // button, so the consumer's CanRemoveTag is not run over every tag a second time.
+    private bool ClearsOnEscape(bool hasRemovableTag) => HandlesEscape
+                                                         && ShowClearButton
+                                                         && hasRemovableTag
+                                                         && InvalidValueBinding() is false;
+
+    // When HandleOnKeyDown acts on Escape, written onto the input for Utils.claimEscape: read off the same state
+    // it decides on - the text being typed, which it takes back first, or else the tags it clears.
+    private string? EscapeClaim(bool hasRemovableTag) => HandlesEscape && (_inputText.Length > 0 || ClearsOnEscape(hasRemovableTag))
+                                                            ? "claim"
+                                                            : null;
 
     /// <summary>
     /// Whether the clear button would have anything to take off the field: every tag, unless
@@ -1678,9 +1694,7 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
 
         if (_invalidReason != BitTagsInputInvalidReason.None) return "true";
 
-        return InputHtmlAttributes is not null && InputHtmlAttributes.TryGetValue("aria-invalid", out var value)
-            ? value?.ToString()
-            : null;
+        return GetSplattedInputAttribute("aria-invalid");
     }
 
     /// <summary>
@@ -2322,10 +2336,11 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
             // JS already prevented focus move in capture phase; add the tag.
             await TryAddTag();
         }
-        else if (e.Key == "Escape" && NoClearOnEscape is false && _inputText.Length > 0)
+        else if (e.IsPlainEscape() && HandlesEscape && _inputText.Length > 0)
         {
             // Escape takes back what is being typed before it takes anything else: throwing a whole
-            // list of tags away over a half typed word is not an undo but a loss.
+            // list of tags away over a half typed word is not an undo but a loss. Only a plain one: an Escape
+            // with a modifier is never claimed from the surface around the field (see EscapeClaim).
             _inputText = string.Empty;
             _syncInputValue = true;
 
@@ -2333,7 +2348,7 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
 
             await RaiseOnInput(immediate: true);
         }
-        else if (e.Key == "Escape" && NoClearOnEscape is false && ShowClearButton && HasRemovableTag())
+        else if (e.IsPlainEscape() && ClearsOnEscape(HasRemovableTag()))
         {
             // The clear button is deliberately kept out of the tab order, so Escape is its keyboard
             // equivalent, exactly as it is in BitSearchBox and BitNumberField - once there is nothing
@@ -2341,7 +2356,8 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
             // a field holding nothing but the tags CanRemoveTag pins in place has nothing to clear.
             await Clear();
         }
-        else if ((e.Key == (IsRtl ? "ArrowRight" : "ArrowLeft")) && _inputText.Length == 0 && CurrentValue?.Count > 0)
+        else if (e.Key is "ArrowLeft" or "ArrowRight" && _inputText.Length == 0 && CurrentValue?.Count > 0 &&
+                 e.Key == (await IsRtlArrowAsync(_js, e.Key) ? "ArrowRight" : "ArrowLeft"))
         {
             // Walking backwards out of an empty input lands on the last tag that is drawn, from where
             // the arrow keys keep moving between the tags.
@@ -2436,15 +2452,22 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
     {
         if (Disabled) return;
 
-        var count = CurrentValue?.Count ?? 0;
+        var snapshot = GetTags();
+        var count = snapshot.Count;
         if (count == 0) return;
+
+        var isRtl = await IsRtlArrowAsync(_js, e.Key);
+
+        // The index names a tag of the list as it was when the key was pressed. A list that changed while the
+        // direction was being read (a tag removed or moved by a press handled in the meantime) puts another tag
+        // at that index, which this press was never meant for.
+        if (GetTags().SequenceEqual(snapshot) is false) return;
 
         // The navigation walks the tags that are drawn, while a move addresses the list as it really is:
         // sending a tag past the fold is a change to the value, not to where the focus may travel.
         var displayed = GetDisplayedTagCount();
-
-        var previousKey = IsRtl ? "ArrowRight" : "ArrowLeft";
-        var nextKey = IsRtl ? "ArrowLeft" : "ArrowRight";
+        var previousKey = isRtl ? "ArrowRight" : "ArrowLeft";
+        var nextKey = isRtl ? "ArrowLeft" : "ArrowRight";
 
         // Alt turns the navigation keys into the move commands of the reordering, which is the pointer
         // free equivalent of dragging a chip into place, so it is checked before them.
@@ -2544,7 +2567,9 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
             // it takes the focus out of the list.
             if (_pickedUpTagIndex >= 0)
             {
-                PutTagBack();
+                // Only the plain key, the one the list claims from the surface around the field: with a modifier
+                // the press is that surface's, and the tag stays where it is carried.
+                if (e.IsPlainEscape()) PutTagBack();
                 return;
             }
 
@@ -2778,8 +2803,10 @@ public partial class BitTagsInput : BitInputBase<ICollection<string>?>
         {
             await CommitEdit();
         }
-        else if (e.Key == "Escape")
+        else if (e.IsPlainEscape())
         {
+            // The plain key is the one the edit input claims from the surface around the field: with a modifier
+            // the press is that surface's, so it does not cancel the edit as well.
             CancelEdit();
         }
     }

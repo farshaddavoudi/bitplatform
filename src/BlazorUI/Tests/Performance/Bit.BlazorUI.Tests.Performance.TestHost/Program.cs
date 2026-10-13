@@ -1,8 +1,18 @@
-﻿var builder = WebApplication.CreateBuilder(args);
+﻿using Bit.BlazorUI;
+
+var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+// The services the components read of the library's own - the theme and the accent color switchers, the page
+// visibility the carousels pause on - and the HttpClient BitFileUpload uploads with.
+builder.Services.AddBitBlazorUIExtrasServices();
+builder.Services.AddScoped(_ => new HttpClient());
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// The services some components inject (BitCarousel's page visibility, ...), as an app registers them.
+builder.Services.AddBitBlazorUIServices();
 
 var app = builder.Build();
 

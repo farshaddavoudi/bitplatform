@@ -32,7 +32,7 @@
    a role the page passes itself is kept, rather than replaced by this one or dropped along with its null. *@
 <div @ref="RootElement"
      role="@(ariaLabel.HasValue() || GetSplattedAttribute("aria-labelledby").HasValue() ? "group" : null)"
-     @attributes="HtmlAttributes"
+     @attributes="DisabledAwareHtmlAttributes"
      id="@_Id"
      style="@StyleBuilder.Value"
      class="@ClassBuilder.Value"
@@ -80,6 +80,7 @@
                                     aria-label="@title"
                                     style="@Styles?.DayPickerMonth"
                                     disabled="@(Disabled)"
+                                    aria-disabled="@(Disabled ? "true" : null)"
                                     class="bit-cal-ptb @Classes?.DayPickerMonth">
                                 @monthTitle
                             </button>
@@ -102,7 +103,8 @@
                                         aria-label="@GoToPrevMonthTitle"
                                         style="@Styles?.PrevMonthNavButton"
                                         class="bit-cal-nbt @Classes?.PrevMonthNavButton"
-                                        disabled="@prevDisabled">
+                                        disabled="@prevDisabled"
+                                        aria-disabled="@(prevDisabled ? "true" : null)">
                                     <i aria-hidden="true"
                                        style="@Styles?.PrevMonthNavIcon"
                                        class="bit-cal-ico @prevMonthNavIconCss @Classes?.PrevMonthNavIcon" />
@@ -117,6 +119,7 @@
                                         title="@GoToTodayTitle"
                                         aria-label="@GoToTodayTitle"
                                         disabled="@goToTodayDisabled"
+                                        aria-disabled="@(goToTodayDisabled ? "true" : null)"
                                         style="@Styles?.GoToTodayButton"
                                         class="bit-cal-gtb @Classes?.GoToTodayButton">
                                     <i aria-hidden="true"
@@ -132,7 +135,8 @@
                                         class="bit-cal-nbt @Classes?.NextMonthNavButton"
                                         title="@GoToNextMonthTitle"
                                         aria-label="@GoToNextMonthTitle"
-                                        disabled="@nextDisabled">
+                                        disabled="@nextDisabled"
+                                        aria-disabled="@(nextDisabled ? "true" : null)">
                                     <i aria-hidden="true"
                                        style="@Styles?.NextMonthNavIcon"
                                        class="bit-cal-ico @nextMonthNavIconCss @Classes?.NextMonthNavIcon" />
@@ -144,6 +148,7 @@
                                         type="button"
                                         title="@ShowTimePickerTitle"
                                         disabled="@(Disabled)"
+                                        aria-disabled="@(Disabled ? "true" : null)"
                                         aria-label="@ShowTimePickerTitle"
                                         style="@Styles?.ShowTimePickerButton"
                                         class="bit-cal-nbt @Classes?.ShowTimePickerButton">
@@ -292,7 +297,13 @@
                 <div style="@Styles?.Divider" class="bit-cal-dvd @Classes?.Divider"></div>
             }
 
-            <div style="@Styles?.YearMonthPickerWrapper" class="bit-cal-mwp @Classes?.YearMonthPickerWrapper">
+            @* Escape is answered on the wrapper, so it does the same from the header's buttons as from the cells.
+               data-bit-esc claims it while it does something (see Utils.claimEscape), so a dialog around the
+               calendar stays open on that press; a month picker beside the day grid leaves the key to the dialog. *@
+            <div @onkeydown="HandleYearMonthPickerKeyDown"
+                 data-bit-esc="@YearMonthPickerEscapeClaim"
+                 style="@Styles?.YearMonthPickerWrapper"
+                 class="bit-cal-mwp @Classes?.YearMonthPickerWrapper">
                 @if (_showYearPicker is false)
                 {
                     var prevDisabled = CanChangeYear(false) is false;
@@ -308,6 +319,7 @@
                                 title="@toggleTitle"
                                 aria-label="@toggleTitle"
                                 disabled="@(Disabled)"
+                                aria-disabled="@(Disabled ? "true" : null)"
                                 style="@Styles?.YearPickerToggleButton"
                                 class="bit-cal-ptb @Classes?.YearPickerToggleButton">
                             @_currentYear
@@ -318,6 +330,7 @@
                                     title="@prevTitle"
                                     aria-label="@prevTitle"
                                     disabled="@prevDisabled"
+                                    aria-disabled="@(prevDisabled ? "true" : null)"
                                     style="@Styles?.PrevYearNavButton"
                                     class="bit-cal-nbt @Classes?.PrevYearNavButton">
                                 <i aria-hidden="true"
@@ -333,6 +346,7 @@
                                         title="@GoToTodayTitle"
                                         aria-label="@GoToTodayTitle"
                                         disabled="@goToTodayDisabled"
+                                        aria-disabled="@(goToTodayDisabled ? "true" : null)"
                                         style="@Styles?.GoToTodayButton"
                                         class="bit-cal-gtb @Classes?.GoToTodayButton">
                                     <i aria-hidden="true"
@@ -345,6 +359,7 @@
                                     title="@nextTitle"
                                     aria-label="@nextTitle"
                                     disabled="@nextDisabled"
+                                    aria-disabled="@(nextDisabled ? "true" : null)"
                                     style="@Styles?.NextYearNavButton"
                                     class="bit-cal-nbt @Classes?.NextYearNavButton">
                                 <i aria-hidden="true"
@@ -357,6 +372,7 @@
                                         type="button"
                                         title="@ShowTimePickerTitle"
                                         disabled="@(Disabled)"
+                                        aria-disabled="@(Disabled ? "true" : null)"
                                         aria-label="@ShowTimePickerTitle"
                                         style="@Styles?.ShowTimePickerButton"
                                         class="bit-cal-nbt @Classes?.ShowTimePickerButton">
@@ -434,6 +450,7 @@
                                 title="@toggleTitle"
                                 aria-label="@toggleTitle"
                                 disabled="@(Disabled)"
+                                aria-disabled="@(Disabled ? "true" : null)"
                                 style="@Styles?.MonthPickerToggleButton"
                                 class="bit-cal-ptb @Classes?.MonthPickerToggleButton">
                             @_yearPickerStartYear - @_yearPickerEndYear
@@ -444,6 +461,7 @@
                                     title="@prevTitle"
                                     aria-label="@prevTitle"
                                     disabled="@prevDisabled"
+                                    aria-disabled="@(prevDisabled ? "true" : null)"
                                     style="@Styles?.PrevYearRangeNavButton"
                                     class="bit-cal-nbt @Classes?.PrevYearRangeNavButton">
                                 <i aria-hidden="true"
@@ -459,6 +477,7 @@
                                         title="@GoToTodayTitle"
                                         aria-label="@GoToTodayTitle"
                                         disabled="@goToTodayDisabled"
+                                        aria-disabled="@(goToTodayDisabled ? "true" : null)"
                                         style="@Styles?.GoToTodayButton"
                                         class="bit-cal-gtb @Classes?.GoToTodayButton">
                                     <i aria-hidden="true"
@@ -471,6 +490,7 @@
                                     title="@nextTitle"
                                     aria-label="@nextTitle"
                                     disabled="@nextDisabled"
+                                    aria-disabled="@(nextDisabled ? "true" : null)"
                                     style="@Styles?.NextYearRangeNavButton"
                                     class="bit-cal-nbt @Classes?.NextYearRangeNavButton">
                                 <i aria-hidden="true"
@@ -529,7 +549,11 @@
                 <div style="@Styles?.Divider" class="bit-cal-dvd @Classes?.Divider"></div>
             }
 
+            @* data-bit-esc claims the Escape that hides a time picker laid over the day grid (see
+               Utils.claimEscape), so a dialog around the calendar stays open on that press; a time picker beside
+               the day grid leaves the key to the dialog. *@
             <div @onkeydown="HandleTimePickerKeyDown"
+                 data-bit-esc="@TimePickerEscapeClaim"
                  style="@Styles?.TimePickerWrapper"
                  class="bit-cal-twp @Classes?.TimePickerWrapper">
                 <div style="@Styles?.TimePickerHeader" class="bit-cal-pkh bit-cal-tph @Classes?.TimePickerHeader">
@@ -545,7 +569,7 @@
                                     aria-label="@NowButtonTitle"
                                     style="@Styles?.NowButton"
                                     disabled="@(Disabled)"
-                                    aria-disabled="@(ReadOnly ? "true" : null)"
+                                    aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                     class="bit-cal-gtn @Classes?.NowButton">
                                 <i aria-hidden="true"
                                    style="@Styles?.NowButtonIcon"
@@ -559,6 +583,7 @@
                                     title="@HideTimePickerTitle"
                                     aria-label="@HideTimePickerTitle"
                                     disabled="@(Disabled)"
+                                    aria-disabled="@(Disabled ? "true" : null)"
                                     style="@Styles?.HideTimePickerButton"
                                     class="bit-cal-nbt @Classes?.HideTimePickerButton">
                                 <i aria-hidden="true"
@@ -577,7 +602,7 @@
                                 title="@TimePickerIncreaseHourTitle"
                                 aria-label="@TimePickerIncreaseHourTitle"
                                 disabled="@(Disabled)"
-                                aria-disabled="@(ReadOnly ? "true" : null)"
+                                aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                 style="@Styles?.TimePickerIncreaseHourButton"
                                 class="bit-cal-tbt @Classes?.TimePickerIncreaseHourButton">
                             <i aria-hidden="true"
@@ -598,6 +623,7 @@
                                title="@TimePickerHourTitle"
                                aria-label="@TimePickerHourTitle"
                                disabled="@(Disabled)"
+                               aria-disabled="@(Disabled ? "true" : null)"
                                style="@Styles?.TimePickerHourInput"
                                class="bit-cal-tin @Classes?.TimePickerHourInput"
                                autocomplete="@BitAutoCompleteValue.NewPassword" />
@@ -608,7 +634,7 @@
                                 title="@TimePickerDecreaseHourTitle"
                                 aria-label="@TimePickerDecreaseHourTitle"
                                 disabled="@(Disabled)"
-                                aria-disabled="@(ReadOnly ? "true" : null)"
+                                aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                 style="@Styles?.TimePickerDecreaseHourButton"
                                 class="bit-cal-tbt @Classes?.TimePickerDecreaseHourButton">
                             <i aria-hidden="true"
@@ -625,7 +651,7 @@
                                 title="@TimePickerIncreaseMinuteTitle"
                                 aria-label="@TimePickerIncreaseMinuteTitle"
                                 disabled="@(Disabled)"
-                                aria-disabled="@(ReadOnly ? "true" : null)"
+                                aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                 style="@Styles?.TimePickerIncreaseMinuteButton"
                                 class="bit-cal-tbt @Classes?.TimePickerIncreaseMinuteButton">
                             <i aria-hidden="true"
@@ -646,6 +672,7 @@
                                title="@TimePickerMinuteTitle"
                                aria-label="@TimePickerMinuteTitle"
                                disabled="@(Disabled)"
+                               aria-disabled="@(Disabled ? "true" : null)"
                                style="@Styles?.TimePickerMinuteInput"
                                class="bit-cal-tin @Classes?.TimePickerMinuteInput"
                                autocomplete="@BitAutoCompleteValue.NewPassword" />
@@ -656,7 +683,7 @@
                                 title="@TimePickerDecreaseMinuteTitle"
                                 aria-label="@TimePickerDecreaseMinuteTitle"
                                 disabled="@(Disabled)"
-                                aria-disabled="@(ReadOnly ? "true" : null)"
+                                aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                 style="@Styles?.TimePickerDecreaseMinuteButton"
                                 class="bit-cal-tbt @Classes?.TimePickerDecreaseMinuteButton">
                             <i aria-hidden="true"
@@ -673,7 +700,7 @@
                             <button @onclick="HandleOnAmClick"
                                     type="button"
                                     disabled="@(Disabled)"
-                                    aria-disabled="@(ReadOnly ? "true" : null)"
+                                    aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                     aria-pressed="@(IsAm() is true ? "true" : "false")"
                                     style="@Styles?.TimePickerAmButton"
                                     class="bit-cal-tbt bit-cal-bam @(IsAm() is true ? "bit-cal-bns" : string.Empty) @Classes?.TimePickerAmButton">
@@ -683,7 +710,7 @@
                             <button @onclick="HandleOnPmClick"
                                     type="button"
                                     disabled="@(Disabled)"
-                                    aria-disabled="@(ReadOnly ? "true" : null)"
+                                    aria-disabled="@((Disabled || ReadOnly) ? "true" : null)"
                                     aria-pressed="@(IsAm() is false ? "true" : "false")"
                                     style="@Styles?.TimePickerPmButton"
                                     class="bit-cal-tbt bit-cal-bpm @(IsAm() is false ? "bit-cal-bns" : string.Empty) @Classes?.TimePickerPmButton">
@@ -709,6 +736,9 @@
         <div class="bit-cal-eov @Classes?.EventModalOverlay"
              style="@Styles?.EventModalOverlay"
              @onclick="CloseEventModal">
+            @* data-bit-esc claims the Escape that closes the dialog (see Utils.claimEscape), so a dialog of the
+               library around the calendar does not close on the same press as well. It is only rendered while the
+               dialog is open, and the dialog closes on every press it hears. *@
             <div id="@_eventDialogId"
                  role="dialog"
                  tabindex="-1"
@@ -717,6 +747,7 @@
                  class="bit-cal-emc @Classes?.EventModalContainer"
                  style="@Styles?.EventModalContainer"
                  @onkeydown="HandleEventDialogKeyDown"
+                 data-bit-esc="claim"
                  @onclick:stopPropagation="true">
                 <div class="bit-cal-emh @Classes?.EventModalHeader"
                      style="@Styles?.EventModalHeader">

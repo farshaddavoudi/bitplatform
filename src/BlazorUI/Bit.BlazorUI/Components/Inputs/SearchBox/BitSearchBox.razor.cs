@@ -915,9 +915,9 @@ public partial class BitSearchBox : BitTextInputBase<string?>
 
     // The base class writes the aria-invalid of a failing validation into the splatted attributes, so the
     // value a consumer set is read back here instead of being overwritten by the explicit attribute below.
-    private string? AriaInvalid => IsInvalid ? "true" : GetInputAttribute("aria-invalid");
+    private string? AriaInvalid => IsInvalid ? "true" : GetSplattedInputAttribute("aria-invalid");
 
-    private string? AriaBusy => Loading ? "true" : GetInputAttribute("aria-busy");
+    private string? AriaBusy => Loading ? "true" : GetSplattedInputAttribute("aria-busy");
 
     /// <summary>
     /// Everything the input is described by, in reading order. A describedby of the consumer's own comes
@@ -931,7 +931,7 @@ public partial class BitSearchBox : BitTextInputBase<string?>
         {
             var ids = string.Join(' ', new[]
             {
-                GetInputAttribute("aria-describedby"),
+                GetSplattedInputAttribute("aria-describedby"),
                 HasErrorMessage ? _errorId : null,
                 HasDescription ? _descriptionId : null,
                 AriaDescription.HasValue() ? _ariaDescriptionId : null
@@ -948,13 +948,6 @@ public partial class BitSearchBox : BitTextInputBase<string?>
     private string? LiveText => ErrorMessage.HasValue()
                                     ? ErrorMessage
                                     : Loading ? LoadingAriaLabel : null;
-
-    private string? GetInputAttribute(string name)
-    {
-        return InputHtmlAttributes is not null && InputHtmlAttributes.TryGetValue(name, out var value)
-                ? value?.ToString()
-                : null;
-    }
 
     private string? GetAutoCorrect() => AutoCorrect.HasValue ? (AutoCorrect.Value ? "on" : "off") : null;
 
@@ -1159,7 +1152,7 @@ public partial class BitSearchBox : BitTextInputBase<string?>
                 break;
 
             case "Escape":
-                await HandleEscape();
+                await HandleEscape(e);
                 break;
 
             case "ArrowDown":
@@ -1261,7 +1254,19 @@ public partial class BitSearchBox : BitTextInputBase<string?>
         catch (JSDisconnectedException) { } // we can ignore this exception here
     }
 
-    private async Task HandleEscape()
+    // When HandleEscape acts on the key, written onto the input for Utils.claimEscape: an open list is closed, and
+    // otherwise the field is cleared (ClearClaim).
+    private string? EscapeClaim => _isOpen ? "claim" : ClearClaim;
+
+    // What a plain Escape clears once the list is closed, the one rule HandleEscape and EscapeClaim both go by: a
+    // value whatever the input shows ("claim"), and with none the text the input still holds ("text"). A read-only
+    // field, NoClearOnEscape and a value bound one way, which refuses the empty one, leave the key alone (null).
+    private string? ClearClaim => Disabled || ReadOnly || NoClearOnEscape ? null
+                                : CurrentValue.HasNoValue() ? "text"
+                                : InvalidValueBinding() ? null
+                                : "claim";
+
+    private async Task HandleEscape(KeyboardEventArgs e)
     {
         await OnEscape.InvokeAsync();
 
@@ -1281,9 +1286,14 @@ public partial class BitSearchBox : BitTextInputBase<string?>
             return;
         }
 
-        if (ReadOnly || NoClearOnEscape) return;
+        // An Escape with a modifier is never claimed from the surface around the field, so it clears nothing here.
+        if (e.IsPlainEscape() is false) return;
 
-        if (CurrentValue.HasNoValue())
+        var claim = ClearClaim;
+
+        if (claim is null) return;
+
+        if (claim == "text")
         {
             // The model is already empty, but without Immediate the input element can still hold
             // text that was never committed. Escape must wipe that too, and since nothing was
@@ -1859,7 +1869,7 @@ public partial class BitSearchBox : BitTextInputBase<string?>
                 isCalloutOpen: _isOpen,
                 responsiveMode: BitResponsiveMode.None,
                 dropDirection: BitDropDirection.TopAndBottom,
-                isRtl: Dir is BitDir.Rtl,
+                isRtl: ExplicitRtl,
                 scrollContainerId: _scrollContainerId,
                 scrollOffset: 0,
                 headerId: string.Empty,

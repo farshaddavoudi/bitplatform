@@ -1,7 +1,7 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// badge and one set on the Style of an instance re-skins that one alone:
+// badge and one set on the Style of an instance re-skins that one and the badges nested in it:
 //   --bit-Badge-color                text and icon color                            (default: per variant, from the primary role)
 //   --bit-Badge-background           background                                     (default: per variant, from the primary role)
 //   --bit-Badge-border-color         border color                                   (default: the background in Fill, the text
@@ -11,6 +11,23 @@
 //   --bit-Badge-active-background    background of a clickable badge while pressed  (default: the hover background, then the
 //                                                                                   background, when either is set, otherwise
 //                                                                                   per variant, from the primary role)
+//                                    Each color above has a twin per variant, read ahead of it, so a theme can set
+//                                    one look apart from the other two (Color still wins over both):
+//   --bit-Badge-fill-color                 text and icon color, Fill variant               (default: --bit-Badge-color)
+//   --bit-Badge-fill-background            background, Fill variant                        (default: --bit-Badge-background)
+//   --bit-Badge-fill-border-color          border color, Fill variant                      (default: --bit-Badge-border-color)
+//   --bit-Badge-fill-hover-background      hovered clickable background, Fill variant      (default: --bit-Badge-hover-background)
+//   --bit-Badge-fill-active-background     pressed clickable background, Fill variant      (default: --bit-Badge-active-background)
+//   --bit-Badge-outline-color              text and icon color, Outline variant            (default: --bit-Badge-color)
+//   --bit-Badge-outline-background         background, Outline variant                     (default: --bit-Badge-background)
+//   --bit-Badge-outline-border-color       border color, Outline variant                   (default: --bit-Badge-border-color)
+//   --bit-Badge-outline-hover-background   hovered clickable background, Outline variant   (default: --bit-Badge-hover-background)
+//   --bit-Badge-outline-active-background  pressed clickable background, Outline variant   (default: --bit-Badge-active-background)
+//   --bit-Badge-text-color                 text and icon color, Text variant               (default: --bit-Badge-color)
+//   --bit-Badge-text-background            background, Text variant                        (default: --bit-Badge-background)
+//   --bit-Badge-text-border-color          border color, Text variant                      (default: --bit-Badge-border-color)
+//   --bit-Badge-text-hover-background      hovered clickable background, Text variant      (default: --bit-Badge-hover-background)
+//   --bit-Badge-text-active-background     pressed clickable background, Text variant      (default: --bit-Badge-active-background)
 //   --bit-Badge-focus-color          focus ring color of a clickable badge          (default: $clr-pri-focus)
 //   --bit-Badge-border-width         border width                                   (default: $shp-border-width)
 //   --bit-Badge-radius               corner radius                                  (default: $shp-radius-full)
@@ -40,6 +57,17 @@
 // theme, so it never reads as an enabled one. A Dot badge ignores the height, padding and radius above and is
 // a circle of --bit-Badge-dot-size.
 
+$bdg-private-properties:
+    dot-size, dot-padding, dot-radius, dis-txt, dis-bg, dis-brd,
+    // The offsets, set on the style of the root that asks for them.
+    ofs-x, ofs-y,
+    // The values the Color, Size and Shape classes publish, which those classes - declared further down at
+    // the same weight - still win over on the root that carries them. Left unset, each sends the var() reading
+    // it on to the public variable and then to the default, which is what lets an explicit parameter outrank
+    // the variable while an unset one leaves the variable in charge.
+    clr, clr-txt, clr-dis, clr-dis-text, clr-hover, clr-active, clr-light, clr-light-hover, clr-fcs, height, padding,
+    fontsize, dotsize, radius;
+
 .bit-bdg {
     position: relative;
     display: inline-block;
@@ -47,33 +75,9 @@
     // The dot and the disabled state hand the badge values that win over the public variables (see .bit-bdg-ctn).
     // Custom properties inherit, which would pass a dot or a disabled state on to every badge in the child
     // content, so each root starts them out unset - which leaves every var() reading them to its fallback.
-    --bit-bdg-dot-size: initial;
-    --bit-bdg-dot-padding: initial;
-    --bit-bdg-dot-radius: initial;
-    --bit-bdg-dis-txt: initial;
-    --bit-bdg-dis-bg: initial;
-    --bit-bdg-dis-brd: initial;
-    // The offsets are set on the style of the root that asks for them, so the same goes for them.
-    --bit-bdg-ofs-x: initial;
-    --bit-bdg-ofs-y: initial;
-    // So do the values the Color, Size and Shape classes publish, which those classes - declared further down at
-    // the same weight - still win over on the root that carries them. Left unset, each sends the var() reading
-    // it on to the public variable and then to the default, which is what lets an explicit parameter outrank
-    // the variable while an unset one leaves the variable in charge.
-    --bit-bdg-clr: initial;
-    --bit-bdg-clr-txt: initial;
-    --bit-bdg-clr-dis: initial;
-    --bit-bdg-clr-dis-text: initial;
-    --bit-bdg-clr-hover: initial;
-    --bit-bdg-clr-active: initial;
-    --bit-bdg-clr-light: initial;
-    --bit-bdg-clr-light-hover: initial;
-    --bit-bdg-clr-fcs: initial;
-    --bit-bdg-height: initial;
-    --bit-bdg-padding: initial;
-    --bit-bdg-fontsize: initial;
-    --bit-bdg-dotsize: initial;
-    --bit-bdg-radius: initial;
+    @each $name in $bdg-private-properties {
+        --bit-bdg-#{$name}: initial;
+    }
 
     // A disabled badge is painted from the disabled colors alone, whatever the public colors say.
     &.bit-dis {
@@ -145,10 +149,13 @@
     font-size: var(--bit-bdg-fontsize, var(--bit-Badge-font-size, #{$tg-fs-sm}));
     border-radius: var(--bit-bdg-dot-radius, var(--bit-bdg-radius, var(--bit-Badge-radius, #{$shp-radius-full})));
     // The colors are resolved per variant on the root (see .bit-bdg-fil), where the Color and the public
-    // variables are ranked against each other.
+    // variables are ranked against each other. The hover and press of a clickable badge come between the
+    // disabled colors and those (see .bit-bdg-clk), and start out unset on every badge.
+    --bit-bdg-cnt-sbr: initial;
+    --bit-bdg-cnt-sbg: initial;
     color: var(--bit-bdg-dis-txt, var(--bit-bdg-cnt-clr-txt));
-    border-color: var(--bit-bdg-dis-brd, var(--bit-bdg-cnt-clr-brd));
-    background-color: var(--bit-bdg-dis-bg, var(--bit-bdg-cnt-clr-bg));
+    border-color: var(--bit-bdg-dis-brd, var(--bit-bdg-cnt-sbr, var(--bit-bdg-cnt-clr-brd)));
+    background-color: var(--bit-bdg-dis-bg, var(--bit-bdg-cnt-sbg, var(--bit-bdg-cnt-clr-bg)));
     translate: var(--bit-bdg-ofs-x, 0) var(--bit-bdg-ofs-y, 0);
 }
 
@@ -182,21 +189,24 @@
     appearance: none;
     pointer-events: auto;
 
+    // The states change the variables the badge is painted from rather than its colors, so the one rule that
+    // paints is the one at rest (.bit-bdg-ctn): a badge the app paints through Classes.Badge keeps that paint
+    // under the pointer and while it is pressed, instead of losing it to a state that outranks the app's class.
     @media (hover: hover) {
         &:hover {
-            border-color: var(--bit-bdg-cnt-clr-brd-hover);
-            background-color: var(--bit-bdg-cnt-clr-bg-hover);
+            --bit-bdg-cnt-sbr: var(--bit-bdg-cnt-clr-brd-hover);
+            --bit-bdg-cnt-sbg: var(--bit-bdg-cnt-clr-bg-hover);
         }
     }
 
     &:active {
-        border-color: var(--bit-bdg-cnt-clr-brd-active);
-        background-color: var(--bit-bdg-cnt-clr-bg-active);
+        --bit-bdg-cnt-sbr: var(--bit-bdg-cnt-clr-brd-active);
+        --bit-bdg-cnt-sbg: var(--bit-bdg-cnt-clr-bg-active);
     }
 
     &:focus-visible {
         z-index: 1;
-        @include focus-ring(var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color)));
     }
 
     // WCAG asks a pointer target to be at least 24x24, and a dot badge or a small counter is well under it.
@@ -264,7 +274,7 @@
 
     // The ring above is a box-shadow of its own, so the focus indicator has to be restated here to win it back.
     > .bit-bdg-wrp > .bit-bdg-clk:focus-visible {
-        @include focus-ring(var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color, #{$clr-pri-focus})));
+        @include focus-ring-own(var(--bit-bdg-clr-fcs, var(--bit-Badge-focus-color)));
     }
 }
 
@@ -486,7 +496,9 @@
         flex-direction: row-reverse;
     }
 
-    &.bit-rtl {
+    // The direction is the one the badge is laid out in - its Dir, the page's or its content's (Auto) - with the
+    // class an explicit Dir renders for an engine without :dir().
+    &:is(.bit-rtl, :dir(rtl)) {
         &:is(.bit-bdg-tlf, .bit-bdg-clf, .bit-bdg-blf) {
             flex-direction: row;
         }
@@ -524,40 +536,45 @@
 // color re-tints either of them without leaving a border of the default color around it. A clickable badge
 // given a background of its own keeps it while it is hovered and pressed, rather than switching back to the
 // default colors there, until a hover or an active background of its own is given too.
+//
+// Every color variable is read in two tiers: the variant's own (--bit-Badge-fill-*, -outline-*, -text-*) ahead of
+// the shared one, so a theme can give the three looks different colors from :root - an outline badge's neutral
+// border without a ring around every filled badge - while a shared variable still re-skins all three at once. Both
+// tiers sit between the role and the default, so an explicit Color still wins over them.
 .bit-bdg-fil {
     --bit-bdg-clr-bg-dis: var(--bit-bdg-clr-dis, #{$clr-pri-dis});
     --bit-bdg-clr-brd-dis: var(--bit-bdg-clr-dis, #{$clr-pri-dis});
-    --bit-bdg-cnt-clr-bg: var(--bit-bdg-clr, var(--bit-Badge-background, #{$clr-pri}));
-    --bit-bdg-cnt-clr-brd: var(--bit-bdg-clr, var(--bit-Badge-border-color, var(--bit-Badge-background, #{$clr-pri})));
-    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr-txt, var(--bit-Badge-color, #{$clr-pri-text}));
-    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-hover})));
-    --bit-bdg-cnt-clr-brd-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-border-color, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-hover}))));
-    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-active, var(--bit-Badge-active-background, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-active}))));
-    --bit-bdg-cnt-clr-brd-active: var(--bit-bdg-clr-active, var(--bit-Badge-border-color, var(--bit-Badge-active-background, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-active})))));
+    --bit-bdg-cnt-clr-bg: var(--bit-bdg-clr, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri})));
+    --bit-bdg-cnt-clr-brd: var(--bit-bdg-clr, var(--bit-Badge-fill-border-color, var(--bit-Badge-border-color, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri})))));
+    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr-txt, var(--bit-Badge-fill-color, var(--bit-Badge-color, #{$clr-pri-text})));
+    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-fill-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri-hover})))));
+    --bit-bdg-cnt-clr-brd-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-fill-border-color, var(--bit-Badge-border-color, var(--bit-Badge-fill-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri-hover})))))));
+    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-active, var(--bit-Badge-fill-active-background, var(--bit-Badge-active-background, var(--bit-Badge-fill-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri-active})))))));
+    --bit-bdg-cnt-clr-brd-active: var(--bit-bdg-clr-active, var(--bit-Badge-fill-border-color, var(--bit-Badge-border-color, var(--bit-Badge-fill-active-background, var(--bit-Badge-active-background, var(--bit-Badge-fill-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-fill-background, var(--bit-Badge-background, #{$clr-pri-active})))))))));
 }
 
 .bit-bdg-otl {
     --bit-bdg-clr-bg-dis: transparent;
     --bit-bdg-clr-brd-dis: var(--bit-bdg-clr-dis, #{$clr-pri-dis});
-    --bit-bdg-cnt-clr-bg: var(--bit-Badge-background, transparent);
-    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr, var(--bit-Badge-color, #{$clr-pri}));
-    --bit-bdg-cnt-clr-brd: var(--bit-bdg-clr, var(--bit-Badge-border-color, var(--bit-Badge-color, #{$clr-pri})));
-    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-light, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-light})));
-    --bit-bdg-cnt-clr-brd-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-border-color, var(--bit-Badge-color, #{$clr-pri-hover})));
-    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-light-hover, var(--bit-Badge-active-background, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-light-hover}))));
-    --bit-bdg-cnt-clr-brd-active: var(--bit-bdg-clr-active, var(--bit-Badge-border-color, var(--bit-Badge-color, #{$clr-pri-active})));
+    --bit-bdg-cnt-clr-bg: var(--bit-Badge-outline-background, var(--bit-Badge-background, transparent));
+    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr, var(--bit-Badge-outline-color, var(--bit-Badge-color, #{$clr-pri})));
+    --bit-bdg-cnt-clr-brd: var(--bit-bdg-clr, var(--bit-Badge-outline-border-color, var(--bit-Badge-border-color, var(--bit-Badge-outline-color, var(--bit-Badge-color, #{$clr-pri})))));
+    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-light, var(--bit-Badge-outline-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-outline-background, var(--bit-Badge-background, #{$clr-pri-light})))));
+    --bit-bdg-cnt-clr-brd-hover: var(--bit-bdg-clr-hover, var(--bit-Badge-outline-border-color, var(--bit-Badge-border-color, var(--bit-Badge-outline-color, var(--bit-Badge-color, #{$clr-pri-hover})))));
+    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-light-hover, var(--bit-Badge-outline-active-background, var(--bit-Badge-active-background, var(--bit-Badge-outline-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-outline-background, var(--bit-Badge-background, #{$clr-pri-light-hover})))))));
+    --bit-bdg-cnt-clr-brd-active: var(--bit-bdg-clr-active, var(--bit-Badge-outline-border-color, var(--bit-Badge-border-color, var(--bit-Badge-outline-color, var(--bit-Badge-color, #{$clr-pri-active})))));
 }
 
 .bit-bdg-txt {
     --bit-bdg-clr-bg-dis: transparent;
     --bit-bdg-clr-brd-dis: transparent;
-    --bit-bdg-cnt-clr-bg: var(--bit-Badge-background, transparent);
-    --bit-bdg-cnt-clr-brd: var(--bit-Badge-border-color, transparent);
-    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr, var(--bit-Badge-color, #{$clr-pri}));
-    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-light, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-light})));
-    --bit-bdg-cnt-clr-brd-hover: var(--bit-Badge-border-color, transparent);
-    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-light-hover, var(--bit-Badge-active-background, var(--bit-Badge-hover-background, var(--bit-Badge-background, #{$clr-pri-light-hover}))));
-    --bit-bdg-cnt-clr-brd-active: var(--bit-Badge-border-color, transparent);
+    --bit-bdg-cnt-clr-bg: var(--bit-Badge-text-background, var(--bit-Badge-background, transparent));
+    --bit-bdg-cnt-clr-brd: var(--bit-Badge-text-border-color, var(--bit-Badge-border-color, transparent));
+    --bit-bdg-cnt-clr-txt: var(--bit-bdg-clr, var(--bit-Badge-text-color, var(--bit-Badge-color, #{$clr-pri})));
+    --bit-bdg-cnt-clr-bg-hover: var(--bit-bdg-clr-light, var(--bit-Badge-text-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-text-background, var(--bit-Badge-background, #{$clr-pri-light})))));
+    --bit-bdg-cnt-clr-brd-hover: var(--bit-Badge-text-border-color, var(--bit-Badge-border-color, transparent));
+    --bit-bdg-cnt-clr-bg-active: var(--bit-bdg-clr-light-hover, var(--bit-Badge-text-active-background, var(--bit-Badge-active-background, var(--bit-Badge-text-hover-background, var(--bit-Badge-hover-background, var(--bit-Badge-text-background, var(--bit-Badge-background, #{$clr-pri-light-hover})))))));
+    --bit-bdg-cnt-clr-brd-active: var(--bit-Badge-text-border-color, var(--bit-Badge-border-color, transparent));
 }
 
 
@@ -632,11 +649,48 @@
 // Windows High Contrast / forced-colors: every background an author paints is stripped, which would leave a
 // dot an empty outline and a disabled badge looking like an enabled one. A dot is nothing but its fill, so it
 // keeps one in the system text color; a disabled badge takes the system disabled color.
+//
+// A Fill badge is painted as a plain surface. The palette fills the primary role with LinkText under a Canvas
+// label, and a foreground role's label is the page's Canvas too - but Chromium draws a Canvas backplate behind
+// every line of text, the icon glyph included, so the count would be Canvas on Canvas, a pill with nothing in
+// it. CanvasText on Canvas reads with the backplate and without it (Firefox draws none), and the border keeps the
+// pill's edge now that the fill is the page's own color.
 @media (forced-colors: active) {
     .bit-bdg-dot > .bit-bdg-wrp > .bit-bdg-ctn {
         forced-color-adjust: none;
         border-color: CanvasText;
         background-color: CanvasText;
+    }
+
+    .bit-bdg-fil:not(.bit-dis, .bit-bdg-dot) > .bit-bdg-wrp > .bit-bdg-ctn {
+        color: CanvasText;
+        border-color: CanvasText;
+        background-color: Canvas;
+    }
+
+    // An Outline or Text badge reads its label from the role, and a background role is the page's own color,
+    // Canvas here - invisible in every engine. It takes the system text color instead, the outline with it.
+    @each $role in $bit-background-color-roles {
+        .bit-bdg-otl.bit-bdg-#{$role}:not(.bit-dis) > .bit-bdg-wrp > .bit-bdg-ctn {
+            color: CanvasText;
+            border-color: CanvasText;
+        }
+
+        .bit-bdg-txt.bit-bdg-#{$role}:not(.bit-dis) > .bit-bdg-wrp > .bit-bdg-ctn {
+            color: CanvasText;
+        }
+    }
+
+    // The hover and press of a clickable badge move its fill, which the rules above no longer read, so the state
+    // is carried by the system Highlight on the border instead, as on every other button of the mode.
+    @media (hover: hover) {
+        .bit-bdg:not(.bit-dis) > .bit-bdg-wrp > .bit-bdg-clk:hover {
+            border-color: Highlight;
+        }
+    }
+
+    .bit-bdg:not(.bit-dis) > .bit-bdg-wrp > .bit-bdg-clk:active {
+        border-color: Highlight;
     }
 
     .bit-bdg.bit-dis > .bit-bdg-wrp > .bit-bdg-ctn {

@@ -1,7 +1,7 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// header and one set on the Style of an instance re-skins that one alone:
+// header and one set on the Style of an instance re-skins that one and the headers nested in it:
 //   --bit-Header-background             fill of the Fill variant                     (default: $clr-bg-pri)
 //   --bit-Header-color                  color of the content                         (default: $clr-fg-pri)
 //   --bit-Header-border-color           border of the Outline variant, and the
@@ -21,6 +21,24 @@
 //   --bit-Header-disabled-background    fill of a disabled Fill header               (default: $clr-bg-pri)
 //   --bit-Header-skip-link-color        text color of the focused skip link          (default: $clr-pri-text)
 //   --bit-Header-skip-link-background   fill of the focused skip link                (default: $clr-pri)
+//                                       Each variant reads a twin of every one above that it draws with, ahead of
+//                                       it, so a theme can set one look apart from the other two (Color still wins):
+//   --bit-Header-fill-background             fill, Fill variant                            (default: --bit-Header-background)
+//   --bit-Header-fill-color                  content color, Fill variant                   (default: --bit-Header-color)
+//   --bit-Header-fill-border-color           Bordered divider, Fill variant                (default: --bit-Header-border-color)
+//   --bit-Header-fill-border-width           Bordered divider thickness, Fill variant      (default: --bit-Header-border-width)
+//   --bit-Header-fill-backdrop-blur          Translucent blur, Fill variant                (default: --bit-Header-backdrop-blur)
+//   --bit-Header-fill-translucent-opacity    Translucent fill share, Fill variant          (default: --bit-Header-translucent-opacity)
+//   --bit-Header-fill-disabled-color         disabled content color, Fill variant          (default: --bit-Header-disabled-color)
+//   --bit-Header-fill-disabled-background    disabled fill, Fill variant                   (default: --bit-Header-disabled-background)
+//   --bit-Header-outline-color               content color, Outline variant                (default: --bit-Header-color)
+//   --bit-Header-outline-border-color        border, Outline variant                       (default: --bit-Header-border-color)
+//   --bit-Header-outline-border-width        border thickness, Outline variant             (default: --bit-Header-border-width)
+//   --bit-Header-outline-disabled-color      disabled content and border, Outline variant  (default: --bit-Header-disabled-color)
+//   --bit-Header-text-color                  content color, Text variant                   (default: --bit-Header-color)
+//   --bit-Header-text-border-color           Bordered divider, Text variant                (default: --bit-Header-border-color)
+//   --bit-Header-text-border-width           Bordered divider thickness, Text variant      (default: --bit-Header-border-width)
+//   --bit-Header-text-disabled-color         disabled content color, Text variant          (default: --bit-Header-disabled-color)
 //
 // A parameter written on the header wins over the variable that restyles what it sets: an explicit Color over the
 // background, color, border color and the two disabled colors, an explicit Size over the two paddings, NoGutter
@@ -28,16 +46,12 @@
 // why Color and Size publish nothing while they are left unset: a class that always carried the default would be
 // indistinguishable from one that was asked for.
 
-// Each of these reads the value an explicit Color or Size publishes first, then the public variable, then the
-// default an unset one stands for: the plain page surface of an uncolored header, and the medium spacing.
-$hdr-bg: var(--bit-hdr-bg, var(--bit-Header-background, #{$clr-bg-pri}));
-$hdr-on: var(--bit-hdr-on, var(--bit-Header-color, #{$clr-fg-pri}));
-$hdr-fg: var(--bit-hdr-fg, var(--bit-Header-color, #{$clr-fg-pri}));
-$hdr-brd: var(--bit-hdr-brd, var(--bit-Header-border-color, #{$clr-brd-pri}));
-$hdr-bg-dis: var(--bit-hdr-bg-dis, var(--bit-Header-disabled-background, #{$clr-bg-pri}));
-$hdr-fg-dis: var(--bit-hdr-fg-dis, var(--bit-Header-disabled-color, #{$clr-fg-dis}));
+// Each of these reads the value an explicit Size publishes first, then the public variable, then the medium
+// spacing an unset one stands for. The colors are read the same way, but per variant (see .bit-hdr-fil).
 $hdr-pad-y: var(--bit-hdr-pad-y, var(--bit-Header-padding-block, #{spacing(1)}));
 $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)}));
+
+$hdr-private-properties: bg, on, fg, brd, bg-dis, fg-dis, pad-y, pad-x;
 
 // The z-index is left without a position of its own on purpose: it only takes effect once one of the
 // position modifiers below applies it, so a header in the normal flow never becomes a stacking context
@@ -60,16 +74,11 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
     // The values the Color and Size classes publish start out unset on every root, so a header nested in another
     // one never inherits the outer one's choice; the classes - declared further down at the same weight - still
     // win on the root that carries them. Left unset, each var() reading them moves on to the public variable and
-    // then to the default (see $hdr-bg and the rest at the top): the plain page surface an uncolored header always
+    // then to the default (see .bit-hdr-fil and $hdr-pad-y): the plain page surface an uncolored header always
     // had - so a header with no Color set never turns invisible - and the medium spacing.
-    --bit-hdr-bg: initial;
-    --bit-hdr-on: initial;
-    --bit-hdr-fg: initial;
-    --bit-hdr-brd: initial;
-    --bit-hdr-bg-dis: initial;
-    --bit-hdr-fg-dis: initial;
-    --bit-hdr-pad-y: initial;
-    --bit-hdr-pad-x: initial;
+    @each $name in $hdr-private-properties {
+        --bit-hdr-#{$name}: initial;
+    }
 
     // Every internal variable the rows read is declared on each root, so a header nested in another one
     // (a toolbar inside a card inside the page header) starts from its own defaults rather than inheriting
@@ -123,33 +132,42 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
 }
 
 
+// Each color reads the value an explicit Color publishes first, then the public variables, then the default an
+// unset one stands for: the plain page surface of an uncolored header. Every public variable is read in two tiers:
+// the variant's own (--bit-Header-fill-*, -outline-*, -text-*) ahead of the shared one, so a theme can give the three
+// looks different colors from :root - a neutral hairline around the outlined headers without a divider under every
+// filled one - while a shared variable still re-skins all three at once. Both tiers sit between the Color and the
+// default, so an explicit Color still wins over them.
+//
+// The divider of a Bordered header is drawn by its variant for the same reason. Outline draws none of its own: its
+// border already runs along that edge in the same width and color, and its disabled state recolors the whole border.
 .bit-hdr-fil {
-    color: $hdr-on;
-    background-color: $hdr-bg;
+    color: var(--bit-hdr-on, var(--bit-Header-fill-color, var(--bit-Header-color, #{$clr-fg-pri})));
+    background-color: var(--bit-hdr-bg, var(--bit-Header-fill-background, var(--bit-Header-background, #{$clr-bg-pri})));
 
     &.bit-dis {
-        color: $hdr-fg-dis;
-        background-color: $hdr-bg-dis;
+        color: var(--bit-hdr-fg-dis, var(--bit-Header-fill-disabled-color, var(--bit-Header-disabled-color, #{$clr-fg-dis})));
+        background-color: var(--bit-hdr-bg-dis, var(--bit-Header-fill-disabled-background, var(--bit-Header-disabled-background, #{$clr-bg-pri})));
     }
 }
 
 .bit-hdr-otl {
-    color: $hdr-fg;
+    color: var(--bit-hdr-fg, var(--bit-Header-outline-color, var(--bit-Header-color, #{$clr-fg-pri})));
     background-color: transparent;
-    border: var(--bit-Header-border-width, #{$shp-border-width}) $shp-border-style $hdr-brd;
+    border: var(--bit-Header-outline-border-width, var(--bit-Header-border-width, #{$shp-border-width})) $shp-border-style var(--bit-hdr-brd, var(--bit-Header-outline-border-color, var(--bit-Header-border-color, #{$clr-brd-pri})));
 
     &.bit-dis {
-        color: $hdr-fg-dis;
-        border-color: $hdr-fg-dis;
+        color: var(--bit-hdr-fg-dis, var(--bit-Header-outline-disabled-color, var(--bit-Header-disabled-color, #{$clr-fg-dis})));
+        border-color: var(--bit-hdr-fg-dis, var(--bit-Header-outline-disabled-color, var(--bit-Header-disabled-color, #{$clr-fg-dis})));
     }
 }
 
 .bit-hdr-txt {
-    color: $hdr-fg;
+    color: var(--bit-hdr-fg, var(--bit-Header-text-color, var(--bit-Header-color, #{$clr-fg-pri})));
     background-color: transparent;
 
     &.bit-dis {
-        color: $hdr-fg-dis;
+        color: var(--bit-hdr-fg-dis, var(--bit-Header-text-disabled-color, var(--bit-Header-disabled-color, #{$clr-fg-dis})));
     }
 }
 
@@ -159,12 +177,12 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
 // this ahead of the plain variant rule. Where backdrop-filter is unsupported the background simply
 // stays translucent, which still reads as intended.
 .bit-hdr-trs.bit-hdr-fil {
-    backdrop-filter: blur(var(--bit-Header-backdrop-blur, #{rem2(12px)}));
-    -webkit-backdrop-filter: blur(var(--bit-Header-backdrop-blur, #{rem2(12px)}));
-    background-color: translucent($hdr-bg, var(--bit-Header-translucent-opacity, 72%));
+    backdrop-filter: blur(var(--bit-Header-fill-backdrop-blur, var(--bit-Header-backdrop-blur, #{rem2(12px)})));
+    -webkit-backdrop-filter: blur(var(--bit-Header-fill-backdrop-blur, var(--bit-Header-backdrop-blur, #{rem2(12px)})));
+    background-color: translucent(var(--bit-hdr-bg, var(--bit-Header-fill-background, var(--bit-Header-background, #{$clr-bg-pri}))), var(--bit-Header-fill-translucent-opacity, var(--bit-Header-translucent-opacity, 72%)));
 
     &.bit-dis {
-        background-color: translucent($hdr-bg-dis, var(--bit-Header-translucent-opacity, 72%));
+        background-color: translucent(var(--bit-hdr-bg-dis, var(--bit-Header-fill-disabled-background, var(--bit-Header-disabled-background, #{$clr-bg-pri}))), var(--bit-Header-fill-translucent-opacity, var(--bit-Header-translucent-opacity, 72%)));
     }
 }
 
@@ -292,8 +310,15 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
 }
 
 
-.bit-hdr-brd {
-    border-block-end: var(--bit-Header-border-width, #{$shp-border-width}) $shp-border-style $hdr-brd;
+// Bordered draws the divider in the variant's own tier of the border variables; Outline draws a whole border
+// already. The variant costs no specificity, so the rule weighs the one class it always did and a single class
+// an app hands the header through Class still restyles the divider.
+:where(.bit-hdr-fil).bit-hdr-brd {
+    border-block-end: var(--bit-Header-fill-border-width, var(--bit-Header-border-width, #{$shp-border-width})) $shp-border-style var(--bit-hdr-brd, var(--bit-Header-fill-border-color, var(--bit-Header-border-color, #{$clr-brd-pri})));
+}
+
+:where(.bit-hdr-txt).bit-hdr-brd {
+    border-block-end: var(--bit-Header-text-border-width, var(--bit-Header-border-width, #{$shp-border-width})) $shp-border-style var(--bit-hdr-brd, var(--bit-Header-text-border-color, var(--bit-Header-border-color, #{$clr-brd-pri})));
 }
 
 // The shadow is cast downwards, towards the content the header covers. It is tinted with the primary
@@ -342,6 +367,13 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
     inset-inline-start: 0;
     clip-path: inset(50%);
     clip: rect(0 0 0 0);
+    // The link is only drawn while it has the focus, and the focus changes the variables it is painted from rather
+    // than its colors: a link the app paints through Classes.SkipLink keeps that paint once it is shown, instead
+    // of losing it to the focus rule that outranks the app's class. Unset, they leave the hidden link inheriting.
+    --bit-hdr-skp-clr: initial;
+    --bit-hdr-skp-bg: initial;
+    color: var(--bit-hdr-skp-clr);
+    background-color: var(--bit-hdr-skp-bg);
 
     &:focus {
         // z-index keeps the focused link above the content of the header it lands on top of.
@@ -352,8 +384,8 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
         overflow: visible;
         clip-path: none;
         border-radius: $shp-radius-control;
-        color: var(--bit-Header-skip-link-color, #{$clr-pri-text});
-        background-color: var(--bit-Header-skip-link-background, #{$clr-pri});
+        --bit-hdr-skp-clr: var(--bit-Header-skip-link-color, #{$clr-pri-text});
+        --bit-hdr-skp-bg: var(--bit-Header-skip-link-background, #{$clr-pri});
         padding: #{spacing(1)} #{spacing(2)};
     }
 
@@ -376,6 +408,34 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
     }
+
+    // A Fill header reads its content color from the role's on-color, which the palette makes Canvas for the
+    // primary role and the foreground ones - and Chromium draws a Canvas backplate behind every line of text, so
+    // everything on the bar would be Canvas on Canvas. The bar is painted as the plain surface it is in this mode,
+    // CanvasText on Canvas, which reads with the backplate and without it (Firefox draws none); the border color
+    // keeps a Bordered divider in the same system text color. The root class is named so this outranks the solid
+    // fill a Transparent header gets back under prefers-reduced-transparency, which follows this block.
+    .bit-hdr.bit-hdr-fil:not(.bit-dis) {
+        color: CanvasText;
+        border-color: CanvasText;
+        background-color: Canvas;
+    }
+
+    // An Outline or Text header reads its content and its border from the role's main color, and a background
+    // role is the page's own color, Canvas here - invisible in every engine. It is the system text color instead.
+    @each $role in $bit-background-color-roles {
+        .bit-hdr-#{$role} {
+            --bit-hdr-fg: CanvasText;
+            --bit-hdr-brd: CanvasText;
+        }
+    }
+
+    // The focused skip link is the primary pair as well, a Canvas label on a LinkText fill, which the backplate
+    // empties the same way. It is shown as the link it is, LinkText on Canvas, with the focus outline around it.
+    .bit-hdr-skp:focus {
+        color: LinkText;
+        background-color: Canvas;
+    }
 }
 
 // A user who asked the system for less transparency gets the solid surface back: the text of a translucent
@@ -384,10 +444,10 @@ $hdr-pad-x: var(--bit-hdr-pad-x, var(--bit-Header-padding-inline, #{spacing(3)})
     .bit-hdr-trs.bit-hdr-fil {
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
-        background-color: $hdr-bg;
+        background-color: var(--bit-hdr-bg, var(--bit-Header-fill-background, var(--bit-Header-background, #{$clr-bg-pri})));
 
         &.bit-dis {
-            background-color: $hdr-bg-dis;
+            background-color: var(--bit-hdr-bg-dis, var(--bit-Header-fill-disabled-background, var(--bit-Header-disabled-background, #{$clr-bg-pri})));
         }
     }
 }

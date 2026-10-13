@@ -107,7 +107,7 @@
                 : default;
 }
 
-<div @ref="RootElement" @attributes="HtmlAttributes"
+<div @ref="RootElement" @attributes="DisabledAwareHtmlAttributes"
      @onclick="onClick"
      @onclick:stopPropagation="StopPropagation"
      id="@_Id"
@@ -164,6 +164,7 @@
                 style="@Styles?.Link"
                 class="bit-crd-lnk @Classes?.Link"
                 disabled="@(Disabled)"
+                aria-disabled="@(Disabled ? "true" : null)"
                 tabindex="@tabIndex"
                 aria-pressed="@selectedState"
                 aria-labelledby="@stretchedLabelledBy"

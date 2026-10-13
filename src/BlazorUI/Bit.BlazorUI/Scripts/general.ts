@@ -99,6 +99,20 @@ document.addEventListener('pointerdown', (e: PointerEvent) => {
     BitBlazorUI.Callouts.dismissOnOutsideInteraction(e.target as Node);
 }, true);
 
+// An Escape a component acts on is claimed for it (see Utils.claimEscape) before anything else hears the key: on
+// the window in the capture phase, ahead of every listener of a surface the component sits in - a dialog, a modal,
+// a panel, an overlay, a tooltip - so none of them closes on the press the component has taken.
+window.addEventListener('keydown', (e: KeyboardEvent) => BitBlazorUI.Utils.claimEscape(e), true);
+
+// An Escape that dismisses the tooltips under the pointer (see Utils.dismissTooltipsOnEscape) is taken right after the
+// claim and ahead of every other listener of the library: added here, as the page loads, its place among the listeners
+// on the window does not depend on when the first tooltip, a menu or an overlay happened to register.
+window.addEventListener('keydown', (e: KeyboardEvent) => BitBlazorUI.Utils.dismissTooltipsOnEscape(e), true);
+
+// An Escape that cancels an IME composition never reaches .NET (see Utils.stopComposingEscape): on the document element
+// in the bubble phase, after every listener of the page's elements and right ahead of Blazor's delegation on the document.
+document.documentElement.addEventListener('keydown', (e: KeyboardEvent) => BitBlazorUI.Utils.stopComposingEscape(e));
+
 // A click on the overlay of a callout opened from inside another one, outside the callouts under it as well,
 // dismisses them all (see Callouts.dismissOnOverlayClick). On the window in the capture phase, ahead of Blazor's
 // own delegation, so that the overlay's handler does not dismiss the innermost callout a second time.
@@ -135,6 +149,8 @@ if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', onVisualViewportChange);
     window.visualViewport.addEventListener('scroll', onVisualViewportChange);
 }
+
+BitBlazorUI.Events.init();
 
 namespace BitBlazorUI {
     export class BitController {

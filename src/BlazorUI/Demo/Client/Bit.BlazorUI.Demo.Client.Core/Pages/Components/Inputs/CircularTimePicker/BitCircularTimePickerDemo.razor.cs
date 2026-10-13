@@ -905,7 +905,7 @@ public partial class BitCircularTimePickerDemo
         {
             Name = "--bit-CircularTimePicker-focus-color",
             DefaultValue = "--bit-clr-pri-focus",
-            Description = "The focus ring of the field, the dial, the action buttons and the close button. The Color parameter wins over it."
+            Description = "The focus ring of the field, the dial, the action buttons and the close button. The Color parameter wins over it. While it is unset, the focus ring is the library's own --bit-shd-focus-ring, so replacing that token re-shapes it too."
         },
         new()
         {
@@ -930,6 +930,12 @@ public partial class BitCircularTimePickerDemo
             Name = "--bit-CircularTimePicker-input-color",
             DefaultValue = "--bit-clr-fg-pri",
             Description = "The text in the field."
+        },
+        new()
+        {
+            Name = "--bit-CircularTimePicker-placeholder-color",
+            DefaultValue = "--bit-clr-fg-sec",
+            Description = "The placeholder of the field. It replaces the grey the browser picks on its own, which is not derived from the theme and drops below the contrast floor on most surfaces."
         },
         new()
         {

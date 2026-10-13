@@ -74,7 +74,11 @@
             isCalloutOpen: boolean,
             responsiveMode: BitResponsiveMode,
             dropDirection: BitDropDirection,
-            isRtl: boolean,
+            // true or false for a component whose Dir names a direction, or null when its Dir leaves the direction
+            // to the page (unset) or to its content (Auto): the component is then asked for the direction it is
+            // actually laid out in, every time the callout is placed, so a page or content that changed direction
+            // since it opened is followed too.
+            isRtl: boolean | null,
             scrollContainerId: string,
             // The height in pixels of everything the callout renders around its scroll container, which comes
             // off the room that container is given. A NEGATIVE value has the callout measure it itself, which
@@ -131,6 +135,11 @@
             // Dismisses the callout once the focus has moved on from both its component and itself - see
             // setupFocusLeave.
             dismissOnFocusLeave: boolean = false,
+            // The id of the trigger the callout is put into the tab order right after while it is open (see
+            // Utils.setupTabOut), or '' for none. It is registered with the open and taken back with the close or
+            // the dismissal, in the same calls, so a component that asks for it here spends no round trip of its
+            // own on it and never holds it a moment longer than the callout is open.
+            tabOutTriggerId: string = '',
             // The id of the root of the component, when it is not an ancestor of the callout - which it is not
             // for any component whose popup is rendered beside its root. What the consumer declared on it for the
             // popup too (the custom properties of Style and Styles.Root, ForceAnimation's bit-fam; see mirrorRoot)
@@ -138,6 +147,11 @@
             // opened from inside another one passes, as it already inherits all of that through the one it was
             // opened from.
             rootId: string = '',
+            // Whether the component's .NET keydown handlers on its root and on the callout act on Escape, and so
+            // have to be told the Escapes a surface nested in either of them answers apart from their own (see
+            // Utils.watchNestedEscape) - which also has the surfaces around them leave a press they answer alone.
+            // It is watched from the open to the close, in the same calls, so it costs no round trip of its own.
+            nestedEscape: boolean = false,
         ) {
             component ??= document.getElementById(componentId);
             if (component == null) return false;
@@ -176,11 +190,19 @@
 
             Callouts.replaceCurrent({
                 dotnetObj, componentId, calloutId, overlayId, arrowId, responsiveMode, scrollContainerId, noDismiss,
-                noScrollDismiss: noDismiss || noScrollDismiss, trapFocus
+                noScrollDismiss: noDismiss || noScrollDismiss, trapFocus, tabOut: !!tabOutTriggerId, nestedEscape
             });
+
+            if (nestedEscape) {
+                Utils.watchNestedEscape(calloutId, rootId ? [rootId, calloutId] : [calloutId], dotnetObj);
+            }
 
             if (trapFocus) {
                 Utils.setupFocusTrap(calloutId);
+            }
+
+            if (tabOutTriggerId) {
+                Utils.setupTabOut(calloutId, tabOutTriggerId, dotnetObj);
             }
 
             if (dismissOnFocusLeave) {
@@ -195,7 +217,7 @@
                 componentId, calloutId, overlayId, responsiveMode, dropDirection, isRtl,
                 scrollContainerId, scrollOffset, headerId, footerId,
                 setCalloutWidth, fixedCalloutWidth, maxWindowWidth, maxHeight, arrowId, gap, preferredSide, alignment, noFlip, collisionPadding,
-                alignmentOffset, arrowPadding
+                alignmentOffset, arrowPadding, rootId
             });
 
             // The callout follows a component that changes size while it is open - a button whose label
@@ -206,7 +228,7 @@
             const result = Callouts.position(component, callout, responsiveMode, dropDirection, isRtl,
                 scrollContainerId, scrollOffset, headerId, footerId,
                 setCalloutWidth, fixedCalloutWidth, maxWindowWidth, true, maxHeight, arrowId, gap, preferredSide, alignment, noFlip, collisionPadding,
-                alignmentOffset, arrowPadding);
+                alignmentOffset, arrowPadding, rootId);
 
             return result;
         }
@@ -233,7 +255,7 @@
             callout: HTMLElement,
             responsiveMode: BitResponsiveMode,
             dropDirection: BitDropDirection,
-            isRtl: boolean,
+            givenRtl: boolean | null,
             scrollContainerId: string,
             scrollOffset: number,
             headerId: string,
@@ -257,8 +279,17 @@
             // The distance in pixels the arrow is kept away from the corners of the callout; zero takes
             // the default below.
             arrowPadding: number = 0,
+            // The id of the root of the component (see toggle), or '' when there is none to read apart from
+            // the element the callout is placed against.
+            rootId: string = '',
         ) {
             const windowWidth = window.innerWidth;
+
+            // The direction the component is laid out in, when its Dir did not name one (see toggle). It is read
+            // off its root, which is what that Dir is set on, rather than off the element the callout is placed
+            // against: an anchor elsewhere on the page (a BitCallout's AnchorId) can read the other way.
+            const directionSource = (rootId ? document.getElementById(rootId) : null) ?? component;
+            const isRtl = givenRtl ?? Utils.isRtl(directionSource);
 
             // The consumer's own cap on the scrollable content, applied on top of the space the
             // viewport leaves so that it can only ever shorten the list, never push it off the screen.
@@ -891,7 +922,7 @@
                     params.scrollContainerId, params.scrollOffset, params.headerId, params.footerId,
                     params.setCalloutWidth, params.fixedCalloutWidth, params.maxWindowWidth, false, params.maxHeight,
                     params.arrowId, params.gap, params.preferredSide, params.alignment, params.noFlip, params.collisionPadding,
-                    params.alignmentOffset, params.arrowPadding);
+                    params.alignmentOffset, params.arrowPadding, params.rootId);
             }
         }
 
@@ -1443,9 +1474,11 @@
         }
 
         // The attributes an element of the chain is watched for: every one it carries that a link copies, and
-        // the ones a page adds later to switch a theme, a direction or a language under an open callout.
+        // the ones a page adds later to switch a theme, a direction or a language under an open callout - the
+        // overlay marker among them, which a BitThemeProvider writes once its theme starts re-valuing what a
+        // family alias is built from.
         private static observedAttributes(source: Element) {
-            const names = ['class', 'style', 'dir', 'lang', 'bit-theme', Callouts.POPUP_STYLE_ATTRIBUTE,
+            const names = ['class', 'style', 'dir', 'lang', 'bit-theme', 'bit-theme-overlay', Callouts.POPUP_STYLE_ATTRIBUTE,
                 'data-theme', 'data-bs-theme', 'data-color-scheme', 'data-scheme', 'data-mode'];
             const own = source.getAttributeNames();
             for (let i = 0; i < own.length; i++) {
@@ -1630,6 +1663,16 @@
                     Utils.disposeFocusTrap(callout.calloutId);
                 }
 
+                // And so does a tab order it registered.
+                if (Callouts._stack[index].tabOut && !callout.tabOut) {
+                    Utils.disposeTabOut(callout.calloutId);
+                }
+
+                // And the watch on its Escapes.
+                if (Callouts._stack[index].nestedEscape && !callout.nestedEscape) {
+                    Utils.unwatchNestedEscape(callout.calloutId);
+                }
+
                 Callouts._stack[index] = callout;
                 return;
             }
@@ -1755,6 +1798,15 @@
                 Utils.disposeFocusTrap(entry.calloutId);
             }
 
+            // The same goes for the tab order around the trigger, and the watch on the Escapes.
+            if (entry.tabOut) {
+                Utils.disposeTabOut(entry.calloutId);
+            }
+
+            if (entry.nestedEscape) {
+                Utils.unwatchNestedEscape(entry.calloutId);
+            }
+
             Callouts.disposeFocusLeave(entry.calloutId);
 
             // The entry has already been taken off the stack by the time it is detached, so what is left
@@ -1802,6 +1854,11 @@
         responsiveMode?: BitResponsiveMode;
         // Whether the toggle registered the focus trap of the callout, which is then its to take back.
         trapFocus?: boolean;
+        // Whether the toggle put the callout into the tab order after its trigger, which is then its to take back.
+        tabOut?: boolean;
+        // Whether the toggle watches the Escapes of the component's root and callout (Utils.watchNestedEscape),
+        // which is then its to take back.
+        nestedEscape?: boolean;
     }
 
     // One element of the chain a relocated callout is moved into, and the element of the page it stands for.
@@ -1825,7 +1882,7 @@
         overlayId: string;
         responsiveMode: BitResponsiveMode;
         dropDirection: BitDropDirection;
-        isRtl: boolean;
+        isRtl: boolean | null;
         scrollContainerId: string;
         scrollOffset: number;
         headerId: string;
@@ -1842,6 +1899,7 @@
         collisionPadding: number;
         alignmentOffset: number;
         arrowPadding: number;
+        rootId: string;
     }
 
     // Which side of the component the callout was placed on, as a physical side, so that the stylesheets

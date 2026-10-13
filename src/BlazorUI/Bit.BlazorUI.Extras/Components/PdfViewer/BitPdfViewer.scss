@@ -2,7 +2,8 @@
 @import "../../../Bit.BlazorUI/Styles/functions.scss";
 
 // Public CSS variables, read with a fallback and never declared here, so a value set on :root (or on an
-// ancestor) re-tunes every viewer under it and one set on the Style of an instance that one alone:
+// ancestor) re-tunes every viewer under it and one set on the Style of an instance that one and the viewers nested in
+// it:
 //   --bit-PdfViewer-color                          text and glyphs of the chrome                (default: $clr-fg-pri)
 //   --bit-PdfViewer-background                     backdrop behind the pages                    (default: $clr-bg-sec-dark)
 //   --bit-PdfViewer-border-color                   outer border                                 (default: $clr-brd-sec)
@@ -22,6 +23,7 @@
 //   --bit-PdfViewer-button-active-hover-background ... under the pointer                        (default: $clr-pri-hover)
 //   --bit-PdfViewer-field-background               the page box, find box and dropdowns         (default: $clr-bg-pri)
 //   --bit-PdfViewer-field-border-color             ... their border                             (default: $clr-brd-pri)
+//   --bit-PdfViewer-field-placeholder-color        ... the placeholder of the find box          (default: $clr-fg-sec)
 //   --bit-PdfViewer-sidebar-background             background of the side panels                (default: $clr-bg-sec)
 //   --bit-PdfViewer-sidebar-width                  width of the bookmarks/attachments/layers panel (default: spacing(29))
 //   --bit-PdfViewer-item-hover-background          a sidebar row under the pointer              (default: $clr-bg-sec-hover)
@@ -45,12 +47,18 @@
 $pdv-color: var(--bit-PdfViewer-color, #{$clr-fg-pri});
 $pdv-divider: var(--bit-PdfViewer-divider-color, #{$clr-brd-sec});
 $pdv-focus: var(--bit-PdfViewer-focus-color, #{$clr-pri-focus});
+// The same color less its fallback, for the focus rings: while it is unset they are the global
+// --bit-shd-focus-ring (see focus-ring-own and focus-ring-color).
+$pdv-focus-ring: focus-ring-color($pdv-focus);
 $pdv-button-hover-background: var(--bit-PdfViewer-button-hover-background, #{$clr-bg-sec-hover});
 $pdv-button-active-color: var(--bit-PdfViewer-button-active-color, #{$clr-pri-text});
 $pdv-button-active-background: var(--bit-PdfViewer-button-active-background, #{$clr-pri});
 $pdv-button-active-hover-background: var(--bit-PdfViewer-button-active-hover-background, #{$clr-pri-hover});
 $pdv-field-background: var(--bit-PdfViewer-field-background, #{$clr-bg-pri});
 $pdv-field-border: var(--bit-PdfViewer-field-border-color, #{$clr-brd-pri});
+// A field's, named with the field family rather than as the --bit-<Component>-placeholder-color of the inputs:
+// here a placeholder is also the page that has not painted yet (--bit-PdfViewer-placeholder-background).
+$pdv-field-placeholder: var(--bit-PdfViewer-field-placeholder-color, #{$clr-fg-sec});
 $pdv-sidebar-background: var(--bit-PdfViewer-sidebar-background, #{$clr-bg-sec});
 $pdv-sidebar-width: var(--bit-PdfViewer-sidebar-width, #{spacing(29)});
 $pdv-item-hover-background: var(--bit-PdfViewer-item-hover-background, #{$clr-bg-sec-hover});
@@ -62,16 +70,17 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
 // A ring drawn inside the element, for the parts that sit in a scroll container (or fill one) whose overflow would
 // clip a ring drawn outside.
 @mixin pdv-inset-ring {
-    outline: none;
-    box-shadow: inset 0 0 0 $shp-focus-ring-width #{$pdv-focus};
-
-    @media (forced-colors: active) {
-        outline: #{$shp-focus-ring-width} solid Highlight;
-        outline-offset: calc(-1 * #{$shp-focus-ring-width});
-    }
+    @include focus-ring-inset($pdv-focus);
 }
 
+$pdv-private-properties: scale;
+
 .bit-pdv {
+    // What the component writes into an inline style starts out unset on every root, so an instance nested in
+    // another one never takes the outer one's value for its own; the inline declaration still wins on its element.
+    @each $name in $pdv-private-properties {
+        --bit-pdv-#{$name}: initial;
+    }
     display: flex;
     overflow: hidden;
     position: relative;
@@ -135,8 +144,10 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
 }
 
 // A right-to-left viewer mirrors the whole track, so the determinate bar fills from the inline-start edge and the
-// indeterminate one sweeps the way the text reads.
-.bit-rtl .bit-pdv-progress {
+// indeterminate one sweeps the way the text reads - whatever made it right to left: the viewer's Dir, the page's
+// direction or its content's (Auto). The track is a child of the root, so the class an explicit Dir renders is read
+// through a child combinator for an engine without :dir().
+.bit-pdv-progress:is(:dir(rtl), .bit-pdv.bit-rtl > *) {
     transform: scaleX(-1);
 }
 
@@ -223,19 +234,22 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     color: $pdv-color;
     align-items: center;
     display: inline-flex;
-    background: transparent;
+    --bit-pdv-btn-sbg: initial;
+    background: var(--bit-pdv-btn-sbg, transparent);
     justify-content: center;
     width: var(--bit-PdfViewer-button-size, #{spacing(3.75)});
     height: var(--bit-PdfViewer-button-size, #{spacing(3.75)});
     border-radius: var(--bit-PdfViewer-button-radius, #{$shp-radius-button});
     transition: background-color $mot-duration $mot-easing, color $mot-duration $mot-easing;
 
+    // The states move the variable a part is painted from rather than its colors, so a part the app paints through
+    // a class keeps that paint under the pointer. Every rule painting the part at rest that a state outranks reads it.
     &:hover:not(:disabled) {
-        background: $pdv-button-hover-background;
+        --bit-pdv-btn-sbg: #{$pdv-button-hover-background};
     }
 
     &:focus-visible {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 
     &:disabled {
@@ -245,10 +259,10 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
 
     &.bit-pdv-act {
         color: $pdv-button-active-color;
-        background: $pdv-button-active-background;
+        background: var(--bit-pdv-btn-sbg, #{$pdv-button-active-background});
 
         &:hover:not(:disabled) {
-            background: $pdv-button-active-hover-background;
+            --bit-pdv-btn-sbg: #{$pdv-button-active-hover-background};
         }
     }
 
@@ -285,9 +299,12 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
         @include focus-ring($pdv-focus, 0);
     }
 
+    @include input-placeholder($pdv-field-placeholder);
+
     &:disabled {
         cursor: default;
         color: $clr-fg-dis;
+        @include input-placeholder($clr-fg-dis);
     }
 }
 
@@ -387,15 +404,16 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     position: relative;
     background: $pdv-page-background;
     border-radius: $shp-radius-surface;
-    border: $shp-border-width-thick $shp-border-style transparent;
+    --bit-pdv-thb-sbr: initial;
+    border: $shp-border-width-thick $shp-border-style var(--bit-pdv-thb-sbr, transparent);
     transition: border-color $mot-duration $mot-easing;
 
     &:hover:not(.bit-pdv-act) {
-        border-color: $pdv-field-border;
+        --bit-pdv-thb-sbr: #{$pdv-field-border};
     }
 
     &:focus-visible {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 
     &.bit-pdv-act {
@@ -459,11 +477,13 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     > .bit-pdv-outline-row {
         border-radius: $shp-radius-sm;
         padding: 0 spacing(0.5);
+        --bit-pdv-orw-sbg: initial;
+        background: var(--bit-pdv-orw-sbg);
         transition: background-color $mot-duration $mot-easing;
     }
 
     &:hover > .bit-pdv-outline-row {
-        background: $pdv-item-hover-background;
+        --bit-pdv-orw-sbg: #{$pdv-item-hover-background};
     }
 
     // The bookmark that points at the page in front of the reader.
@@ -488,7 +508,7 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
         }
 
         &:hover > .bit-pdv-outline-row {
-            background: transparent;
+            --bit-pdv-orw-sbg: transparent;
         }
     }
 }
@@ -618,18 +638,19 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     font-family: inherit;
     justify-content: center;
     min-width: spacing(3.25);
-    background: transparent;
+    --bit-pdv-opt-sbg: initial;
+    background: var(--bit-pdv-opt-sbg, transparent);
     font-weight: $tg-fw-semibold;
     border-radius: var(--bit-PdfViewer-button-radius, #{$shp-radius-button});
     border: $shp-border-width $shp-border-style $pdv-field-border;
     transition: background-color $mot-duration $mot-easing, color $mot-duration $mot-easing;
 
     &:hover:not(:disabled) {
-        background: $pdv-button-hover-background;
+        --bit-pdv-opt-sbg: #{$pdv-button-hover-background};
     }
 
     &:focus-visible {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 
     &:disabled {
@@ -639,11 +660,11 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
 
     &.bit-pdv-act {
         color: $pdv-button-active-color;
-        background: $pdv-button-active-background;
+        background: var(--bit-pdv-opt-sbg, #{$pdv-button-active-background});
         border-color: $pdv-button-active-background;
 
         &:hover:not(:disabled) {
-            background: $pdv-button-active-hover-background;
+            --bit-pdv-opt-sbg: #{$pdv-button-active-hover-background};
         }
     }
 
@@ -697,9 +718,17 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     }
 }
 
-// A folded branch points the way it will open, which in a right-to-left tree is to the left.
-.bit-rtl .bit-pdv-outline-toggle.bit-pdv-col svg {
+// A folded branch points the way it will open, which in a right-to-left tree is to the left - whatever made it
+// right to left: the viewer's Dir, the page's direction or the outline's own content (Auto).
+.bit-pdv-outline-toggle.bit-pdv-col:dir(rtl) svg {
     transform: rotate(180deg);
+}
+
+// An engine without :dir() is left with the class an explicit Dir renders.
+@supports not selector(:dir(rtl)) {
+    .bit-pdv.bit-rtl .bit-pdv-outline-toggle.bit-pdv-col svg {
+        transform: rotate(180deg);
+    }
 }
 
 /* A leaf keeps the toggle's width so every label in the tree starts on the same
@@ -738,7 +767,7 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     border-radius: $shp-radius-dialog;
 
     &:focus-visible {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 }
 
@@ -850,7 +879,8 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     text-align: start;
     color: inherit;
     flex-direction: column;
-    background: transparent;
+    --bit-pdv-atc-sbg: initial;
+    background: var(--bit-pdv-atc-sbg, transparent);
     font-size: $tg-fs-sm;
     font-family: inherit;
     padding: spacing(0.5) spacing(0.7);
@@ -858,7 +888,7 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     transition: background-color $mot-duration $mot-easing;
 
     &:hover {
-        background: $pdv-item-hover-background;
+        --bit-pdv-atc-sbg: #{$pdv-item-hover-background};
     }
 
     &:focus-visible {
@@ -933,7 +963,8 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     height: $siz-ctrl-md;
     font-size: $tg-fs-sm;
     font-family: inherit;
-    background: transparent;
+    --bit-pdv-dbt-sbg: initial;
+    background: var(--bit-pdv-dbt-sbg, transparent);
     padding: 0 spacing(1.5);
     letter-spacing: $tg-ctrl-letter-spacing;
     text-transform: $tg-ctrl-text-transform;
@@ -942,20 +973,22 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     min-width: $siz-ctrl-min-width;
 
     &:hover {
-        background: $clr-bg-sec-hover;
+        --bit-pdv-dbt-sbg: #{$clr-bg-sec-hover};
     }
 
     &:focus-visible {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 
+    // The primary action reads the variable too, so its own hover below - which outranks the generic one - still
+    // answers the pointer.
     &.bit-pdv-act {
         color: $clr-pri-text;
-        background: $clr-pri;
+        background: var(--bit-pdv-dbt-sbg, #{$clr-pri});
         border-color: $clr-pri;
 
         &:hover {
-            background: $clr-pri-hover;
+            --bit-pdv-dbt-sbg: #{$clr-pri-hover};
         }
     }
 }
@@ -977,10 +1010,12 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
     font-size: $tg-fs-sm;
     padding: spacing(0.4) spacing(0.7);
     border-radius: $shp-radius-sm;
+    --bit-pdv-lyr-sbg: initial;
+    background: var(--bit-pdv-lyr-sbg);
     transition: background-color $mot-duration $mot-easing;
 
     &:hover {
-        background: $pdv-item-hover-background;
+        --bit-pdv-lyr-sbg: #{$pdv-item-hover-background};
     }
 
     &:has(input:focus-visible) {
@@ -1056,7 +1091,7 @@ $pdv-placeholder-background: var(--bit-PdfViewer-placeholder-background, #f0f0f0
 
     /* The input is invisible, and so is its focus ring: the button shape shows it. */
     &:has(.bit-pdv-file:focus-visible) {
-        @include focus-ring($pdv-focus);
+        @include focus-ring-own($pdv-focus-ring);
     }
 
     &:has(.bit-pdv-file:disabled) {

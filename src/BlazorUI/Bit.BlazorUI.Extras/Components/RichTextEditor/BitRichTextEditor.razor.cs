@@ -364,6 +364,11 @@ public partial class BitRichTextEditor : BitComponentBase
 
     private bool ControlsDisabled => EffectiveReadOnly || _inSourceView;
 
+    private bool UnlinkDisabled => ControlsDisabled || _state.InLink is false;
+
+    // The source toggle is the one control still live in the source view, which is how a read-only editor leaves it.
+    private bool SourceToggleDisabled => Disabled || (EffectiveReadOnly && _inSourceView is false);
+
     private string LabelId => $"{UniqueId}-label";
 
     private string ErrorMessageId => $"{UniqueId}-error-message";
@@ -563,7 +568,9 @@ public partial class BitRichTextEditor : BitComponentBase
     /// </summary>
     private static async Task OnPanelKeyDown(KeyboardEventArgs e, Func<Task> close)
     {
-        if (e.Key == "Escape") await close();
+        // Only the plain key, the one the panel claims (data-bit-esc): an Escape with a modifier is the surrounding
+        // surface's.
+        if (e.IsPlainEscape()) await close();
     }
 
     /// <summary>Sends the focus back to the text on the next render (a panel or a menu is closing under it).</summary>

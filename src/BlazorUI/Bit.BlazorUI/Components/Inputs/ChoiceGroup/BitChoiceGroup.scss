@@ -1,7 +1,7 @@
 ﻿@import "../../../Styles/functions.scss";
 
 // Public CSS variables, read off the root and never declared here, so a value set on :root re-skins every
-// choice group and one set on the Style of an instance re-skins that one alone:
+// choice group and one set on the Style of an instance re-skins that one and the choice groups nested in it:
 //   --bit-ChoiceGroup-color                      accent of the checked state: the radio ring and dot,
 //                                                and the border of a checked card              (default: $clr-pri)
 //   --bit-ChoiceGroup-hover-color                accent while hovered                          (default: $clr-pri-hover)
@@ -45,6 +45,17 @@
 //   --bit-ChoiceGroup-item-checked-font-weight   weight of the checked item's text             (default: $tg-fw-bold)
 //   --bit-ChoiceGroup-item-description-color     color of an item's description                (default: $clr-fg-sec)
 //   --bit-ChoiceGroup-item-description-font-size text size of an item's description            (default: $tg-fs-xs)
+//                                                The item surfaces a variant paints have a twin per variant, read ahead
+//                                                of the shared one, so a theme can set one look apart from the others:
+//   --bit-ChoiceGroup-fill-item-background             card at rest, Fill variant                (default: --bit-ChoiceGroup-item-background)
+//   --bit-ChoiceGroup-fill-item-hover-background       hovered card, Fill variant                (default: --bit-ChoiceGroup-item-hover-background)
+//   --bit-ChoiceGroup-fill-item-checked-background     checked card, Fill variant                (default: --bit-ChoiceGroup-item-checked-background)
+//   --bit-ChoiceGroup-fill-item-border-color           card border at rest, Fill variant         (default: --bit-ChoiceGroup-item-border-color)
+//   --bit-ChoiceGroup-outline-item-background          card at rest, Outline variant             (default: --bit-ChoiceGroup-item-background)
+//   --bit-ChoiceGroup-outline-item-hover-background    hovered card, Outline variant             (default: --bit-ChoiceGroup-item-hover-background)
+//   --bit-ChoiceGroup-outline-item-checked-background  checked card, Outline variant             (default: --bit-ChoiceGroup-item-checked-background)
+//   --bit-ChoiceGroup-outline-item-border-color        card border at rest, Outline variant      (default: --bit-ChoiceGroup-item-border-color)
+//   --bit-ChoiceGroup-text-item-background             icon or image tile, Text variant          (default: --bit-ChoiceGroup-item-background)
 //
 // A parameter written on the choice group wins over the variable that restyles what it sets: an explicit Color
 // over every color above that it paints - the accent and hover colors, the checked card's border and tint, the
@@ -55,6 +66,9 @@
 // Size leaves alone - the unchecked circle, the card surface and border of a Variant, the label and text
 // colors - stays the variables'. A state an item is in (checked, disabled, invalid) still picks which of them
 // is read, as before.
+
+$chg-private-properties: clr, clr-bg, clr-hover, clr-dis, clr-dis-text, clr-focus, gap, ico-size, fontsize,
+                         circle-size, dot-size, desc-fontsize, inline-ico-size, card-padding;
 
 .bit-chg {
     display: flex;
@@ -71,20 +85,9 @@
     // item template of another one from inheriting the outer one's choice, and it is what lets each read below
     // rank an explicit parameter first, then the public variable, then the primary, medium group an unset
     // parameter stands for.
-    --bit-chg-clr: initial;
-    --bit-chg-clr-bg: initial;
-    --bit-chg-clr-hover: initial;
-    --bit-chg-clr-dis: initial;
-    --bit-chg-clr-dis-text: initial;
-    --bit-chg-clr-focus: initial;
-    --bit-chg-gap: initial;
-    --bit-chg-ico-size: initial;
-    --bit-chg-fontsize: initial;
-    --bit-chg-circle-size: initial;
-    --bit-chg-dot-size: initial;
-    --bit-chg-desc-fontsize: initial;
-    --bit-chg-inline-ico-size: initial;
-    --bit-chg-card-padding: initial;
+    @each $name in $chg-private-properties {
+        --bit-chg-#{$name}: initial;
+    }
     // The sizes several rules are read off, resolved once here.
     --bit-chg-cnt-gap: var(--bit-chg-gap, var(--bit-ChoiceGroup-gap, #{spacing(1)}));
     --bit-chg-circle-side: var(--bit-chg-circle-size, var(--bit-ChoiceGroup-circle-size, #{$siz-sel-md}));
@@ -124,12 +127,12 @@
             border-color: var(--bit-chg-clr-inv);
 
             &::before {
-                border-color: var(--bit-chg-clr-inv);
+                border-color: var(--bit-chg-rad-brd, var(--bit-chg-clr-inv));
             }
 
             &::after {
-                border-color: var(--bit-chg-clr-inv);
-                background-color: var(--bit-chg-clr-inv);
+                border-color: var(--bit-chg-dot-brd, var(--bit-chg-clr-inv));
+                background-color: var(--bit-chg-dot-bg, var(--bit-chg-clr-inv));
             }
         }
     }
@@ -248,7 +251,13 @@
     width: fit-content;
     display: inline-flex;
     padding-inline-start: 0;
-    background-color: var(--bit-chg-clr-bg, var(--bit-ChoiceGroup-item-background, #{$clr-bg-sec}));
+}
+
+// The tile paints a surface of its own only in Text, the variant with no card around it: the card variants make it
+// transparent below, so it reads the Text tier of the item background. The variant costs no specificity, so the
+// tile still weighs the one class it always did and a single class handed to it through Classes.ItemLabel repaints it.
+:where(.bit-chg-txt) .bit-chg-ihi {
+    background-color: var(--bit-chg-clr-bg, var(--bit-ChoiceGroup-text-item-background, var(--bit-ChoiceGroup-item-background, #{$clr-bg-sec})));
 }
 
 .bit-chg-rad {
@@ -267,7 +276,8 @@
         box-sizing: border-box;
         transform: translateY(-50%);
         width: var(--bit-chg-circle-side);
-        border: var(--bit-ChoiceGroup-circle-border-width, #{$shp-border-width}) $shp-border-style var(--bit-ChoiceGroup-circle-color, #{$clr-brd-pri});
+        --bit-chg-rad-brd: initial;
+        border: var(--bit-ChoiceGroup-circle-border-width, #{$shp-border-width}) $shp-border-style var(--bit-chg-rad-brd, var(--bit-ChoiceGroup-circle-color, #{$clr-brd-pri}));
         transition: border-color $mot-duration $mot-easing;
     }
 
@@ -286,7 +296,11 @@
         position: absolute;
         border-radius: 50%;
         box-sizing: border-box;
-        background-color: var(--bit-ChoiceGroup-dot-hover-color, #{$clr-fg-sec-hover});
+        --bit-chg-dot-bg: initial;
+        --bit-chg-dot-brd: initial;
+        background-color: var(--bit-chg-dot-bg, var(--bit-ChoiceGroup-dot-hover-color, #{$clr-fg-sec-hover}));
+        // Nothing draws a border around the dot at rest; the read only hands it the color a state sets.
+        border-color: var(--bit-chg-dot-brd);
         width: var(--bit-chg-dot-size, var(--bit-ChoiceGroup-dot-size, #{spacing(1.25)}));
         height: var(--bit-chg-dot-size, var(--bit-ChoiceGroup-dot-size, #{spacing(1.25)}));
         transition: opacity $mot-duration $mot-easing, background-color $mot-duration $mot-easing;
@@ -301,10 +315,14 @@
 // group is excluded the same way: its circle is painted with the error color by a rule this one would
 // otherwise outweigh, so hovering an invalid option dropped the error color. The scope is wrapped in
 // :where() to cost no specificity, which keeps the read-only reset below the winner it already was.
+//
+// Every state of the circle, the dot and the item label changes the variable the part is painted from rather
+// than its color, so the rules that declare the colors are the ones at rest: a part the app paints through
+// Classes keeps that paint under the pointer, instead of losing it to a state that outranks the app's class.
 @media (hover: hover) {
     :where(.bit-chg:not(.bit-inv)) .bit-chg-icn:not(.bit-chg-ids):not(.bit-chg-ich) .bit-chg-itl:hover .bit-chg-rad {
         &::before {
-            border-color: var(--bit-ChoiceGroup-circle-hover-color, #{$clr-brd-pri-hover});
+            --bit-chg-rad-brd: var(--bit-ChoiceGroup-circle-hover-color, #{$clr-brd-pri-hover});
         }
 
         &::after {
@@ -333,10 +351,14 @@
 // Every item label carries .bit-chg-itl and the tile layout only adds .bit-chg-ili on top of it, so the
 // single rule here covers both the plain and the tile item without them stacking two rings on each other.
 .bit-chg-inp:focus-visible + .bit-chg-itl {
-    @include focus-ring(var(--bit-chg-clr-focus, var(--bit-ChoiceGroup-focus-color, #{$clr-pri-focus})));
+    @include focus-ring-own(var(--bit-chg-clr-focus, var(--bit-ChoiceGroup-focus-color)));
 }
 
 .bit-chg-itl {
+    // The accent the card variants tint a checked card with when nothing else does. It is the accent of every
+    // variant - the radio ring and dot too - so it is no variant's to read; it is resolved on the label, where the
+    // card variants read it, so an accent set on an item's Style reaches its card as well.
+    --bit-chg-acc: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
     display: flex;
     cursor: pointer;
     user-select: none;
@@ -365,6 +387,9 @@
     // border radius) is rounded on a plain item too instead of only on a tile.
     border-radius: var(--bit-ChoiceGroup-item-radius, #{$shp-radius-control});
     flex-direction: var(--bit-chg-flex-direction);
+    // What the states of the label - a tile's, a card's - move; see the hover of the circle above.
+    --bit-chg-itl-bg: initial;
+    --bit-chg-itl-brd: initial;
 }
 
 .bit-chg-txd {
@@ -394,7 +419,7 @@
     padding-block-start: spacing(2.75);
     border-radius: var(--bit-ChoiceGroup-item-radius, #{$shp-radius-control});
     transition: border-color $mot-duration $mot-easing, background-color $mot-duration $mot-easing;
-    border: var(--bit-ChoiceGroup-item-border-width, #{$shp-border-width}) $shp-border-style transparent;
+    border: var(--bit-ChoiceGroup-item-border-width, #{$shp-border-width}) $shp-border-style var(--bit-chg-itl-brd, transparent);
 
     .bit-chg-rad {
         position: absolute;
@@ -408,7 +433,7 @@
 
     @media (hover: hover) {
         &:hover {
-            border-color: var(--bit-ChoiceGroup-circle-hover-color, #{$clr-brd-pri-hover});
+            --bit-chg-itl-brd: var(--bit-ChoiceGroup-circle-hover-color, #{$clr-brd-pri-hover});
 
             .bit-chg-rad {
                 &::before {
@@ -517,12 +542,12 @@
         border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
 
         &::before {
-            border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+            border-color: var(--bit-chg-rad-brd, var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri})));
         }
 
         &::after {
             opacity: 1;
-            background-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+            background-color: var(--bit-chg-dot-bg, var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri})));
         }
 
     }
@@ -535,22 +560,25 @@
     @media (hover: hover) {
         :where(.bit-chg:not(.bit-inv)) &:not(.bit-chg-ids) .bit-chg-itl:hover .bit-chg-rad {
             &::before {
-                border-color: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
+                --bit-chg-rad-brd: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
             }
 
             &::after {
-                border-color: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
-                background-color: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
+                --bit-chg-dot-brd: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
+                --bit-chg-dot-bg: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
             }
         }
     }
 
+    // The label's border is started out unset again by every rule that paints it at rest, so a state these
+    // rules outranked while they painted the border (the tile's unchecked hover here) is outranked still.
     .bit-chg-ili {
-        border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+        --bit-chg-itl-brd: initial;
+        border-color: var(--bit-chg-itl-brd, var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri})));
 
         @media (hover: hover) {
             &:hover {
-                border-color: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
+                --bit-chg-itl-brd: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover}));
             }
         }
     }
@@ -582,7 +610,7 @@
             .bit-chg-icn:not(.bit-chg-ich):not(.bit-chg-ids) {
                 .bit-chg-itl:hover .bit-chg-rad {
                     &::before {
-                        border-color: var(--bit-ChoiceGroup-circle-color, #{$clr-brd-pri});
+                        --bit-chg-rad-brd: var(--bit-ChoiceGroup-circle-color, #{$clr-brd-pri});
                     }
 
                     &::after {
@@ -591,7 +619,7 @@
                 }
 
                 .bit-chg-ili:hover {
-                    border-color: transparent;
+                    --bit-chg-itl-brd: transparent;
 
                     .bit-chg-rad::before {
                         opacity: 0;
@@ -603,16 +631,16 @@
             .bit-chg-ich {
                 .bit-chg-itl:hover .bit-chg-rad {
                     &::before {
-                        border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+                        --bit-chg-rad-brd: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
                     }
 
                     &::after {
-                        background-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+                        --bit-chg-dot-bg: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
                     }
                 }
 
                 .bit-chg-ili:hover {
-                    border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
+                    --bit-chg-itl-brd: var(--bit-chg-clr, var(--bit-ChoiceGroup-color, #{$clr-pri}));
                 }
             }
         }
@@ -641,22 +669,23 @@
         color: var(--bit-chg-clr-dis-text, var(--bit-ChoiceGroup-disabled-text-color, #{$clr-pri-dis-text}));
 
         &::before {
-            border-color: var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis}));
+            border-color: var(--bit-chg-rad-brd, var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis})));
         }
 
         &::after {
-            background-color: var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis}));
+            background-color: var(--bit-chg-dot-bg, var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis})));
         }
     }
 
     .bit-chg-ili {
         cursor: default;
-        border-color: transparent;
+        --bit-chg-itl-brd: initial;
+        border-color: var(--bit-chg-itl-brd, transparent);
         color: var(--bit-chg-clr-dis-text, var(--bit-ChoiceGroup-disabled-text-color, #{$clr-pri-dis-text}));
 
         @media (hover: hover) {
             &:hover {
-                border-color: transparent;
+                --bit-chg-itl-brd: transparent;
             }
         }
     }
@@ -900,8 +929,9 @@
         box-sizing: border-box;
         padding: var(--bit-chg-card-padding, var(--bit-ChoiceGroup-item-padding, #{spacing(1.5)}));
         border-radius: var(--bit-ChoiceGroup-item-radius, #{$shp-radius-surface});
-        background-color: var(--bit-ChoiceGroup-item-background, var(--bit-chg-card-bg));
-        border: var(--bit-ChoiceGroup-item-border-width, #{$shp-border-width}) $shp-border-style var(--bit-ChoiceGroup-item-border-color, var(--bit-chg-card-brd));
+        --bit-chg-itl-brd: initial;
+        background-color: var(--bit-chg-itl-bg, var(--bit-chg-card-bg));
+        border: var(--bit-ChoiceGroup-item-border-width, #{$shp-border-width}) $shp-border-style var(--bit-chg-itl-brd, var(--bit-chg-card-brd));
         transition: border-color $mot-duration $mot-easing, background-color $mot-duration $mot-easing;
     }
 
@@ -921,11 +951,14 @@
     }
 
     .bit-chg-ich .bit-chg-itl {
-        border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-item-checked-border-color, var(--bit-ChoiceGroup-color, #{$clr-pri})));
+        --bit-chg-itl-brd: initial;
+        border-color: var(--bit-chg-itl-brd, var(--bit-chg-clr, var(--bit-ChoiceGroup-item-checked-border-color, var(--bit-ChoiceGroup-color, #{$clr-pri}))));
+        background-color: var(--bit-chg-itl-bg, var(--bit-chg-card-tint, var(--bit-chg-card-bg-checked)));
     }
 
     &.bit-inv .bit-chg-itl {
-        border-color: var(--bit-chg-clr-inv);
+        --bit-chg-itl-brd: initial;
+        border-color: var(--bit-chg-itl-brd, var(--bit-chg-clr-inv));
     }
 
     // Scoped to an enabled item of a valid group and written above the specificity of the tile's own
@@ -935,13 +968,14 @@
     // already was.
     @media (hover: hover) {
         &:where(:not(.bit-inv)) .bit-chg-icn:not(.bit-chg-ids) .bit-chg-itl:hover {
-            border-color: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-item-hover-border-color, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover})));
-            background-color: var(--bit-ChoiceGroup-item-hover-background, var(--bit-chg-card-bg-hover));
+            --bit-chg-itl-brd: var(--bit-chg-clr-hover, var(--bit-ChoiceGroup-item-hover-border-color, var(--bit-ChoiceGroup-hover-color, #{$clr-pri-hover})));
+            --bit-chg-itl-bg: var(--bit-chg-card-bg-hover);
         }
     }
 
     .bit-chg-ids .bit-chg-itl {
-        border-color: var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis}));
+        --bit-chg-itl-brd: initial;
+        border-color: var(--bit-chg-itl-brd, var(--bit-chg-clr-dis, var(--bit-ChoiceGroup-disabled-color, #{$clr-pri-dis})));
     }
 }
 
@@ -950,30 +984,29 @@
 // The tint of an explicit Color is a value of its own, which is left unset - and so falls through to the
 // public checked background, then to the tint of the public accent or of the primary role - while the Color
 // is: a color-mix() over an unset property is invalid, and an invalid custom property reads as unset.
-.bit-chg-otl {
-    --bit-chg-card-bg: transparent;
-    --bit-chg-card-brd: #{$clr-brd-sec};
-    --bit-chg-card-bg-hover: #{$clr-bg-sec-hover};
+//
+// Each card variant resolves its surface and border here, reading its own tier of the item variables
+// (--bit-ChoiceGroup-outline-item-*, -fill-item-*) ahead of the shared one, so a theme can give outline and
+// filled cards different colors from :root while a shared variable still re-skins both at once. The card
+// rules above read only these resolved values, so neither variant is handed the other's. They are resolved
+// on the card itself, never on the root: an item's Style and Styles.ItemContainer land on the item container
+// around it, and a public variable set there reaches only what is resolved below it.
+.bit-chg-otl .bit-chg-itl {
+    --bit-chg-card-bg: var(--bit-ChoiceGroup-outline-item-background, var(--bit-ChoiceGroup-item-background, transparent));
+    --bit-chg-card-brd: var(--bit-ChoiceGroup-outline-item-border-color, var(--bit-ChoiceGroup-item-border-color, #{$clr-brd-sec}));
+    --bit-chg-card-bg-hover: var(--bit-ChoiceGroup-outline-item-hover-background, var(--bit-ChoiceGroup-item-hover-background, #{$clr-bg-sec-hover}));
     --bit-chg-card-tint: #{translucent(var(--bit-chg-clr), 8%)};
-    --bit-chg-card-bg-checked: #{translucent(var(--bit-ChoiceGroup-color, #{$clr-pri}), 8%)};
-
-    .bit-chg-ich .bit-chg-itl {
-        background-color: var(--bit-chg-card-tint, var(--bit-ChoiceGroup-item-checked-background, var(--bit-chg-card-bg-checked)));
-    }
+    --bit-chg-card-bg-checked: var(--bit-ChoiceGroup-outline-item-checked-background, var(--bit-ChoiceGroup-item-checked-background, #{translucent(var(--bit-chg-acc), 8%)}));
 }
 
 // Fill states the card with a surface instead of a border; the checked one is the accent color at an
 // alpha low enough to keep the item text above the 4.5:1 contrast of WCAG 1.4.3 in both schemes.
-.bit-chg-fil {
-    --bit-chg-card-bg: #{$clr-bg-sec};
-    --bit-chg-card-brd: transparent;
-    --bit-chg-card-bg-hover: #{$clr-bg-ter};
+.bit-chg-fil .bit-chg-itl {
+    --bit-chg-card-bg: var(--bit-ChoiceGroup-fill-item-background, var(--bit-ChoiceGroup-item-background, #{$clr-bg-sec}));
+    --bit-chg-card-brd: var(--bit-ChoiceGroup-fill-item-border-color, var(--bit-ChoiceGroup-item-border-color, transparent));
+    --bit-chg-card-bg-hover: var(--bit-ChoiceGroup-fill-item-hover-background, var(--bit-ChoiceGroup-item-hover-background, #{$clr-bg-ter}));
     --bit-chg-card-tint: #{translucent(var(--bit-chg-clr), 14%)};
-    --bit-chg-card-bg-checked: #{translucent(var(--bit-ChoiceGroup-color, #{$clr-pri}), 14%)};
-
-    .bit-chg-ich .bit-chg-itl {
-        background-color: var(--bit-chg-card-tint, var(--bit-ChoiceGroup-item-checked-background, var(--bit-chg-card-bg-checked)));
-    }
+    --bit-chg-card-bg-checked: var(--bit-ChoiceGroup-fill-item-checked-background, var(--bit-ChoiceGroup-item-checked-background, #{translucent(var(--bit-chg-acc), 14%)}));
 }
 
 // The read-only rules above reset the hover of the circle and of the tile; a card is a third surface, so
@@ -985,16 +1018,16 @@
     &.bit-chg-fil {
         @media (hover: hover) {
             .bit-chg-icn:not(.bit-chg-ich) .bit-chg-itl:hover {
-                border-color: var(--bit-ChoiceGroup-item-border-color, var(--bit-chg-card-brd));
-                background-color: var(--bit-ChoiceGroup-item-background, var(--bit-chg-card-bg));
+                --bit-chg-itl-brd: var(--bit-chg-card-brd);
+                --bit-chg-itl-bg: var(--bit-chg-card-bg);
             }
 
             // Both halves of the checked look are restated, not the border alone: the hover above sets a
             // background too, so leaving it out would let the hover replace the checked tint with the
             // plain hover surface and brighten the card the pointer only passed over.
             .bit-chg-ich .bit-chg-itl:hover {
-                border-color: var(--bit-chg-clr, var(--bit-ChoiceGroup-item-checked-border-color, var(--bit-ChoiceGroup-color, #{$clr-pri})));
-                background-color: var(--bit-chg-card-tint, var(--bit-ChoiceGroup-item-checked-background, var(--bit-chg-card-bg-checked)));
+                --bit-chg-itl-brd: var(--bit-chg-clr, var(--bit-ChoiceGroup-item-checked-border-color, var(--bit-ChoiceGroup-color, #{$clr-pri})));
+                --bit-chg-itl-bg: var(--bit-chg-card-tint, var(--bit-chg-card-bg-checked));
             }
         }
     }
@@ -1022,6 +1055,23 @@
 
     .bit-chg-ids .bit-chg-itl {
         color: GrayText;
+    }
+
+    // The checked tile of an icon or image item says so with a border in the accent, which for a background
+    // role is the page's own color - Canvas here, a border drawn in the color of what it sits on. The system
+    // selection color carries it instead, as it does for the circle below; a disabled tile keeps no border.
+    .bit-chg-ich:not(.bit-chg-ids) .bit-chg-ili {
+        border-color: Highlight;
+    }
+
+    // A background role sets the tile of an icon or image item on the role's contrast color, CanvasText here - the
+    // very color the tile's label and glyph are written in, so the item would be a blank block wherever no backplate
+    // is drawn behind the text (Firefox). The tile is taken back to the surface it has without a Color, after the
+    // role classes it outranks on source order.
+    @each $role in $bit-background-color-roles {
+        .bit-chg-#{$role} {
+            --bit-chg-clr-bg: initial;
+        }
     }
 
     .bit-chg-ich .bit-chg-rad {

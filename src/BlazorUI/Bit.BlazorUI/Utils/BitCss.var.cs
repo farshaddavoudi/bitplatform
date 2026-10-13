@@ -595,19 +595,50 @@ public static partial class BitCss
                 public const string Md = "--bit-spa-card-md";
                 public const string Lg = "--bit-spa-card-lg";
             }
+
+            /// <summary>
+            /// The unitless multiples of the spacing unit the density-aware insets are computed from where they are
+            /// used (<c>--bit-spa-*-steps</c>); a value set for an inset itself wins over them.
+            /// </summary>
+            public static class Steps
+            {
+                public const string Dialog = "--bit-spa-dialog-steps";
+
+                public static class Card
+                {
+                    public const string Sm = "--bit-spa-card-sm-steps";
+                    public const string Md = "--bit-spa-card-md-steps";
+                    public const string Lg = "--bit-spa-card-lg-steps";
+                }
+            }
         }
 
+        /// <summary>
+        /// The motion tokens. The durations and their factor, the spinner pair and the loop factor come in two forms: the plain
+        /// one is what a style reads, and what <c>prefers-reduced-motion</c> collapses (or calms) and
+        /// <c>ForceAnimation</c> restores; the <c>...Full</c> one holds the unreduced value the plain one aliases,
+        /// and is the one to set - setting the plain one, on an element above all, would outrank the
+        /// reduced-motion query. <see cref="BitThemeMotion"/> writes the <c>...Full</c> ones.
+        /// </summary>
         public static class Motion
         {
             public const string Duration = "--bit-mot-duration";
             public const string DurationShort = "--bit-mot-duration-short";
             public const string DurationLong = "--bit-mot-duration-long";
+            public const string DurationFactor = "--bit-mot-duration-factor";
+            public const string DurationFull = "--bit-mot-duration-full";
+            public const string DurationShortFull = "--bit-mot-duration-short-full";
+            public const string DurationLongFull = "--bit-mot-duration-long-full";
+            public const string DurationFactorFull = "--bit-mot-duration-factor-full";
             public const string Easing = "--bit-mot-easing";
             public const string EasingDecelerate = "--bit-mot-easing-decelerate";
             public const string EasingAccelerate = "--bit-mot-easing-accelerate";
             public const string DurationSpinner = "--bit-mot-duration-spinner";
             public const string EasingSpinner = "--bit-mot-easing-spinner";
             public const string LoopFactor = "--bit-mot-loop-factor";
+            public const string DurationSpinnerFull = "--bit-mot-duration-spinner-full";
+            public const string EasingSpinnerFull = "--bit-mot-easing-spinner-full";
+            public const string LoopFactorFull = "--bit-mot-loop-factor-full";
         }
 
         public static class Layout
@@ -739,6 +770,104 @@ public static partial class BitCss
             public const string SpinnerStroke = "--bit-siz-spinner-stroke";
             public const string PopupMaxHeight = "--bit-siz-popup-max-height";
             public const string DialogMaxWidth = "--bit-siz-dialog-max-width";
+
+            /// <summary>
+            /// The unitless multiples of the spacing unit the density-aware sizes are computed from where they are
+            /// used (<c>--bit-siz-*-steps</c>); a value set for a size itself wins over them.
+            /// </summary>
+            public static class Steps
+            {
+                public static class Control
+                {
+                    public const string Sm = "--bit-siz-ctrl-sm-steps";
+                    public const string Md = "--bit-siz-ctrl-md-steps";
+                    public const string Lg = "--bit-siz-ctrl-lg-steps";
+                }
+
+                public static class ControlPaddingX
+                {
+                    public const string Sm = "--bit-siz-ctrl-pad-x-sm-steps";
+                    public const string Md = "--bit-siz-ctrl-pad-x-md-steps";
+                    public const string Lg = "--bit-siz-ctrl-pad-x-lg-steps";
+                }
+
+                public static class ControlPaddingY
+                {
+                    public const string Sm = "--bit-siz-ctrl-pad-y-sm-steps";
+                    public const string Md = "--bit-siz-ctrl-pad-y-md-steps";
+                    public const string Lg = "--bit-siz-ctrl-pad-y-lg-steps";
+                }
+
+                public const string ControlMinWidth = "--bit-siz-ctrl-min-width-steps";
+
+                public static class Item
+                {
+                    public const string Sm = "--bit-siz-item-sm-steps";
+                    public const string Md = "--bit-siz-item-md-steps";
+                    public const string Lg = "--bit-siz-item-lg-steps";
+                }
+
+                public const string Tab = "--bit-siz-tab-steps";
+
+                public static class Selection
+                {
+                    public const string Sm = "--bit-siz-sel-sm-steps";
+                    public const string Md = "--bit-siz-sel-md-steps";
+                    public const string Lg = "--bit-siz-sel-lg-steps";
+                }
+
+                public static class SwitchWidth
+                {
+                    public const string Sm = "--bit-siz-switch-w-sm-steps";
+                    public const string Md = "--bit-siz-switch-w-md-steps";
+                    public const string Lg = "--bit-siz-switch-w-lg-steps";
+                }
+
+                public static class SwitchHeight
+                {
+                    public const string Sm = "--bit-siz-switch-h-sm-steps";
+                    public const string Md = "--bit-siz-switch-h-md-steps";
+                    public const string Lg = "--bit-siz-switch-h-lg-steps";
+                }
+
+                public static class SwitchThumb
+                {
+                    public const string Sm = "--bit-siz-switch-thumb-sm-steps";
+                    public const string Md = "--bit-siz-switch-thumb-md-steps";
+                    public const string Lg = "--bit-siz-switch-thumb-lg-steps";
+                }
+
+                public static class SliderThumb
+                {
+                    public const string Sm = "--bit-siz-slider-thumb-sm-steps";
+                    public const string Md = "--bit-siz-slider-thumb-md-steps";
+                    public const string Lg = "--bit-siz-slider-thumb-lg-steps";
+                }
+
+                public static class Badge
+                {
+                    public const string Sm = "--bit-siz-badge-sm-steps";
+                    public const string Md = "--bit-siz-badge-md-steps";
+                    public const string Lg = "--bit-siz-badge-lg-steps";
+                }
+
+                public static class BadgeDot
+                {
+                    public const string Sm = "--bit-siz-badge-dot-sm-steps";
+                    public const string Md = "--bit-siz-badge-dot-md-steps";
+                    public const string Lg = "--bit-siz-badge-dot-lg-steps";
+                }
+
+                public static class Chip
+                {
+                    public const string Sm = "--bit-siz-chip-sm-steps";
+                    public const string Md = "--bit-siz-chip-md-steps";
+                    public const string Lg = "--bit-siz-chip-lg-steps";
+                }
+
+                public const string PopupMaxHeight = "--bit-siz-popup-max-height-steps";
+                public const string DialogMaxWidth = "--bit-siz-dialog-max-width-steps";
+            }
         }
 
         public static class Opacity

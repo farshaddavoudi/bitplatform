@@ -37,12 +37,13 @@ public class BitDataGridStylesheetTests
         "--bit-DataGrid-detail-background",
         "--bit-DataGrid-footer-background",
         "--bit-DataGrid-disabled-color",
+        "--bit-DataGrid-placeholder-color",
     ];
 
     [TestMethod]
     public void BitDataGridShouldReadEveryPublicVariableWithoutDeclaringIt()
     {
-        var stylesheet = SourceFiles.Read("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
+        var stylesheet = SourceFiles.ReadStylesheet("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
 
         var read = Regex.Matches(stylesheet, @"var\((--bit-DataGrid-[a-z-]+)").Select(m => m.Groups[1].Value).Distinct().ToArray();
 
@@ -68,7 +69,7 @@ public class BitDataGridStylesheetTests
     [TestMethod]
     public void BitDataGridShouldResetItsRowStateOnEveryRoot()
     {
-        var stylesheet = SourceFiles.Read("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
+        var stylesheet = SourceFiles.ReadStylesheet("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
 
         var root = SourceFiles.GetScssBlock(stylesheet, "\n.bit-dtg {");
 
@@ -82,7 +83,7 @@ public class BitDataGridStylesheetTests
     [TestMethod]
     public void BitDataGridShouldGiveEveryControlAFocusIndicator()
     {
-        var stylesheet = SourceFiles.Read("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
+        var stylesheet = SourceFiles.ReadStylesheet("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
 
         // The library resets `button { outline: none }`, so each button family draws its own indicator.
         foreach (var selector in new[] { "button.bit-dtg-htext", ".bit-dtg-btn", ".bit-dtg-icon-btn", ".bit-dtg-drag-handle" })
@@ -93,5 +94,23 @@ public class BitDataGridStylesheetTests
 
         StringAssert.Contains(stylesheet, ".bit-dtg-resizer:focus-visible");
         StringAssert.Contains(stylesheet, "@media (forced-colors: active)");
+    }
+
+    // The primary button's label is the on-color of its fill, Canvas under a forced palette, which Chromium's Canvas
+    // backplate behind text hides; it is painted as a native button there instead.
+    [TestMethod]
+    public void BitDataGridShouldPaintThePrimaryButtonAsANativeOneUnderForcedColors()
+    {
+        var stylesheet = SourceFiles.ReadStylesheet("Bit.BlazorUI.Extras", "Components", "DataGrid", "BitDataGrid.scss");
+
+        var forced = SourceFiles.GetScssBlock(stylesheet, "\n@media (forced-colors: active) {");
+
+        StringAssert.Contains(forced, """
+                .bit-dtg-btn-primary:not(:disabled) {
+                    color: ButtonText;
+                    border-color: ButtonText;
+                    background-color: ButtonFace;
+                }
+            """.Replace("\r\n", "\n"));
     }
 }

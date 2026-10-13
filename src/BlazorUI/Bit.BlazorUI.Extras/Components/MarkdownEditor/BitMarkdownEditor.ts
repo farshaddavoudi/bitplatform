@@ -181,9 +181,6 @@
         };
         private static readonly CLOSING_CHARS = [')', ']', '}', '`', '"'];
         private static readonly MODIFIER_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'AltGraph'];
-        // Everything the Tab key can land on, the preview's rendered links and details included.
-        private static readonly FOCUSABLE = 'a[href], area[href], button, input, select, textarea, summary, iframe, ' +
-            'audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]';
         // Auto-closing is skipped in front of anything that is not whitespace or a closer.
         private static readonly NOT_BEFORE_CLOSE = /[^\s)\]}>]/;
         // Ctrl/Cmd+Alt+<digit> heading shortcuts, keyed by physical code so they survive
@@ -899,14 +896,21 @@
 
         // ==========================================================
 
+        // An Escape without a modifier: the only one the editor claims (data-bit-esc, see Utils.claimEscape), so the
+        // only one it acts on - one with a modifier goes on to the surface around the editor.
+        private static isPlainEscape(e: KeyboardEvent) {
+            return e.key === 'Escape' && !(e.altKey || e.ctrlKey || e.metaKey || e.shiftKey);
+        }
+
         private keyDownHandler = (e: KeyboardEvent) => {
-            if (e.isComposing) return;
+            if (Utils.isComposingKey(e)) return;
 
             // Escape arms the Tab escape hatch below, then lets .NET close the find panel
-            // or leave full-screen.
+            // or leave full-screen - only the plain key, the one the textarea claims
+            // (EscapeClaim): an Escape with a modifier goes on to a dialog the editor sits in.
             if (e.key === 'Escape') {
                 this._tabEscape = true;
-                this.invoke('OnEscape');
+                if (MarkdownEditorCore.isPlainEscape(e)) this.invoke('OnEscape');
                 return;
             }
 
@@ -1024,7 +1028,11 @@
         };
 
         private previewKeyDownHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') { this.invoke('OnEscape'); return; }
+            if (e.key === 'Escape') {
+                // Only the plain key, the one the pane claims, as in the textarea.
+                if (MarkdownEditorCore.isPlainEscape(e)) this.invoke('OnEscape');
+                return;
+            }
             if (this.runItemShortcut(e, false)) return;
             if ((e.ctrlKey || e.metaKey) && e.code === 'Slash') { e.preventDefault(); this.invoke('OnShortcut', 'help'); return; }
             if (e.key === 'F9') { e.preventDefault(); this.invoke('OnShortcut', 'mode'); return; }
@@ -1036,7 +1044,7 @@
         // selection it works on is; a custom item runs from the preview pane as well.
         private runItemShortcut(e: KeyboardEvent, editing: boolean): boolean {
             const map = this.config.shortcuts;
-            if (!map || e.isComposing) return false;
+            if (!map || Utils.isComposingKey(e)) return false;
 
             const altGraph = typeof e.getModifierState === 'function' && e.getModifierState('AltGraph');
             const mod = (e.ctrlKey || e.metaKey) && !altGraph;
@@ -1077,8 +1085,8 @@
             if (e.key !== 'Tab' || e.defaultPrevented || !this.root) return;
             if (!this.root.classList.contains('bit-mde-fsc') || this.root.querySelector('.bit-mde-hlp')) return;
 
-            const focusables = Array.from(this.root.querySelectorAll<HTMLElement>(MarkdownEditorCore.FOCUSABLE))
-                .filter(el => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+            // Everything the Tab key can land on, the preview's rendered links and details included.
+            const focusables = Utils.getFocusables(this.root);
             if (!focusables.length) return;
 
             const first = focusables[0];

@@ -167,7 +167,7 @@ public partial class BitTextField : BitTextInputBase<string?>
     /// <summary>
     /// The custom content of the clear button, which replaces its icon.
     /// </summary>
-    [Parameter] public RenderFragment? ClearButtonTemplate { get; set; }
+    [Parameter, Outranks(nameof(ClearButtonIcon))] public RenderFragment? ClearButtonTemplate { get; set; }
 
     /// <summary>
     /// What a screen reader announces once the field has been emptied - by the clear button or by
@@ -181,12 +181,15 @@ public partial class BitTextField : BitTextInputBase<string?>
     /// <summary>
     /// Empties the field when the Escape key is pressed in it, which is the keyboard counterpart of the
     /// clear button and what a filter or a search field is expected to do. It raises <see cref="OnClear"/>
-    /// and is announced the same way a press on the button is, it leaves a read-only field alone, and it
-    /// does not need <see cref="ShowClearButton"/>. <see cref="OnEscape"/> is still raised afterwards, so a
-    /// dialog that closes on Escape sees a field that is already empty. Escape keeps its own meaning while
-    /// an input method editor is composing, where it cancels the candidate rather than the value, and while a
-    /// <see cref="GhostText"/> suggestion is showing, where it rejects the suggestion and leaves the typed text
-    /// alone. An Escape in a field that is already empty clears nothing and raises nothing.
+    /// and is announced the same way a press on the button is, it leaves a read-only field and one bound one
+    /// way (a Value with neither a ValueChanged nor an OnChange) alone, and it does not need
+    /// <see cref="ShowClearButton"/>. A press that clears the field is taken by it, so a dialog, a modal, a
+    /// panel or an overlay around the field stays open and closes on the next one; a press with nothing to
+    /// clear, and one with Shift, Ctrl, Alt or Meta held, goes on to them as usual. <see cref="OnEscape"/> is
+    /// still raised afterwards, so a handler of the app's own sees a field that is already empty. Escape keeps
+    /// its own meaning while an input method editor is composing, where it cancels the candidate rather than
+    /// the value, and while a <see cref="GhostText"/> suggestion is showing, where it rejects the suggestion and
+    /// leaves the typed text alone. An Escape in a field that is already empty clears nothing and raises nothing.
     /// </summary>
     [Parameter] public bool ClearOnEscape { get; set; }
 
@@ -567,7 +570,7 @@ public partial class BitTextField : BitTextInputBase<string?>
     /// The custom content of the reveal password button, which receives whether the password is currently
     /// revealed and replaces the default icon.
     /// </summary>
-    [Parameter] public RenderFragment<bool>? RevealPasswordTemplate { get; set; }
+    [Parameter, Outranks(nameof(RevealPasswordIcon)), Outranks(nameof(HidePasswordIcon))] public RenderFragment<bool>? RevealPasswordTemplate { get; set; }
 
     /// <summary>
     /// For multiline text, Number of rows.
@@ -1048,7 +1051,8 @@ public partial class BitTextField : BitTextInputBase<string?>
     // is what keeps them right on a field that only commits its value when it loses focus: a clear button
     // that shows up a whole blur after the first character would be of no use.
     // Whether the input holds anything is tracked whatever is shown, since it is also what tells a clearing
-    // that there is something to clear; only the re-render is kept for the fields that draw either of them.
+    // that there is something to clear; only the re-render is kept for the fields that draw either of them, or
+    // that claim the Escape which clears it (EscapeClaim).
     private void UpdateCharCount(string? text)
     {
         var hasText = string.IsNullOrEmpty(text) is false;
@@ -1059,7 +1063,7 @@ public partial class BitTextField : BitTextInputBase<string?>
         _hasText = hasText;
         _charCount = count;
 
-        if (ShowCount || ShowClearButton)
+        if (ShowCount || ShowClearButton || ClearOnEscape)
         {
             StateHasChanged();
         }
@@ -1105,6 +1109,17 @@ public partial class BitTextField : BitTextInputBase<string?>
     // not empty - one counting words, say - and a field holding text would otherwise lose its clear button.
     private bool ShowClear => ShowClearButton && _hasText;
 
+    // Whether a plain Escape clears the field (see ClearValue), the one rule HandleOnKeyDown and EscapeClaim both
+    // go by: never in a read-only field, nor in one bound one way, whose value refuses the empty one.
+    private bool ClearsOnEscape => ClearOnEscape && Disabled is false && ReadOnly is false && InvalidValueBinding() is false;
+
+    // When ClearOnEscape clears the field, written onto the input for Utils.claimEscape: read off the same state
+    // ClearValue decides on - a value, or the text the input has reported on its way to one - so the key is
+    // claimed exactly when the press clears something.
+    private string? EscapeClaim => ClearsOnEscape && (_hasText || string.IsNullOrEmpty(CurrentValueAsString) is false)
+                                    ? "claim"
+                                    : null;
+
     private bool NeedsCompositionGuard => Immediate
                                           || ClearOnEscape
                                           || OnInput.HasDelegate
@@ -1133,7 +1148,7 @@ public partial class BitTextField : BitTextInputBase<string?>
             // own would otherwise lose it the moment the component has anything to reference.
             var ids = string.Join(' ', new[]
             {
-                GetInputAttribute("aria-describedby"),
+                GetSplattedInputAttribute("aria-describedby"),
                 HasErrorMessage ? _errorId : null,
                 HasDescription ? _descriptionId : null,
                 AriaDescription.HasValue() ? _ariaDescriptionId : null,
@@ -1147,9 +1162,9 @@ public partial class BitTextField : BitTextInputBase<string?>
     // The forced invalid state and the one the EditContext produces end up on the same attribute, and the
     // base class writes the latter into the splatted attributes, so the value of the consumer is read back
     // here instead of being overwritten by the explicit attribute of the input.
-    private string? AriaInvalid => HasError ? "true" : GetInputAttribute("aria-invalid");
+    private string? AriaInvalid => HasError ? "true" : GetSplattedInputAttribute("aria-invalid");
 
-    private string? AriaBusy => Loading ? "true" : GetInputAttribute("aria-busy");
+    private string? AriaBusy => Loading ? "true" : GetSplattedInputAttribute("aria-busy");
 
     // The tooltip is written on the frame so that it also covers the affixes and the icon around the input,
     // and on the input itself so that it reaches a keyboard: a title on a div is shown on hover and nothing
@@ -1157,7 +1172,7 @@ public partial class BitTextField : BitTextInputBase<string?>
     // back to when the field carries no other description. The value of the consumer is read back here for
     // the same reason the other attributes below are - the explicit attribute of the input wins over the
     // splatted ones, so a null written over a splatted title would take that title away.
-    private string? InputTitle => Title ?? GetInputAttribute("title");
+    private string? InputTitle => Title ?? GetSplattedInputAttribute("title");
 
     // What the state of the field has to say out loud. The rejection wins over the other two, which say what
     // the field is doing rather than what is wrong with it.
@@ -1211,10 +1226,10 @@ public partial class BitTextField : BitTextInputBase<string?>
     // aria-labelledby takes precedence over aria-label in turn, so pointing at the visible label while a name
     // of its own was given would quietly throw that name away. The visible label keeps naming the input
     // through the for/id pair either way, which is what the label element is for.
-    private string? LabelledBy => GetInputAttribute("aria-labelledby")
+    private string? LabelledBy => GetSplattedInputAttribute("aria-labelledby")
                                   ?? (HasLabel && AriaLabel.HasNoValue() ? _labelId : null);
 
-    private string? InputAriaLabel => AriaLabel ?? GetInputAttribute("aria-label");
+    private string? InputAriaLabel => AriaLabel ?? GetSplattedInputAttribute("aria-label");
 
     // A button holding nothing but a hidden glyph is named by its aria-label, or else by its title, and one with
     // neither is announced as a bare "button". So, with neither given, it falls back to the name of the built-in
@@ -1224,13 +1239,6 @@ public partial class BitTextField : BitTextInputBase<string?>
                                             : IconTitle.HasValue()
                                                 ? null
                                                 : (IconName.HasValue() && Icon is null ? IconName : "Field action");
-
-    private string? GetInputAttribute(string name)
-    {
-        return InputHtmlAttributes is not null && InputHtmlAttributes.TryGetValue(name, out var value)
-                ? value?.ToString()
-                : null;
-    }
 
     private string CountText => MaxLength >= 0 ? $"{_charCount}/{MaxLength}" : _charCount.ToString();
 
@@ -1320,9 +1328,11 @@ public partial class BitTextField : BitTextInputBase<string?>
         }
         else if (e.Key == "Escape")
         {
-            // The clearing comes first so that a handler closing a dialog or a panel on Escape sees a field
-            // that is already empty rather than one that empties itself behind it.
-            if (ClearOnEscape && ReadOnly is false && await ClearValue())
+            // The clearing comes first so that an OnEscape handler sees a field that is already empty rather
+            // than one that empties itself behind it. A surface of the library around the field leaves this press
+            // alone: the input has claimed it (EscapeClaim). An Escape with a modifier is the surface's, so it
+            // clears nothing here.
+            if (ClearsOnEscape && e.IsPlainEscape() && await ClearValue())
             {
                 await OnClear.InvokeAsync();
             }

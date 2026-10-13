@@ -91,7 +91,7 @@
 
 @* aria-owns is a list of ids, so one the page splatted on is kept beside the popup's rather than replaced by it or
    removed by the null written while the popup is closed (see BitComponentBase.GetSplattedAttribute). *@
-<div @ref="RootElement" @attributes="HtmlAttributes"
+<div @ref="RootElement" @attributes="DisabledAwareHtmlAttributes"
      id="@_Id"
      style="@StyleBuilder.Value"
      class="@ClassBuilder.Value"
@@ -116,10 +116,14 @@
     }
 
     @* The field is the interactive element of a dropdown that is not typed into, so it is the one
-       InputElement points at and the one FocusAsync (overridden for the ComboBox mode) focuses. *@
+       InputElement points at and the one FocusAsync (overridden for the ComboBox mode) focuses.
+       data-bit-esc claims the Escape HandleOnTriggerKeyDown acts on (see Utils.claimEscape), so a dialog around
+       the dropdown does not close on the press that closes the list or, with ClearOnEscape, takes back the
+       selection. *@
     <div @ref="InputElement"
          @onclick="HandleOnClick"
          @onkeydown="HandleOnTriggerKeyDown"
+         data-bit-esc="@TriggerEscapeClaim"
          @onfocusin="HandleOnFocusIn"
          @onfocusout="HandleOnFocusOut"
          title="@Title"
@@ -266,9 +270,12 @@
                    reports the list and whether it is showing. An input does not inherit the accessible
                    name of anything around it, so without an AriaLabel it is named after the label by
                    hand. Its readonly and disabled states are the native attributes, which is what the
-                   aria- pair would only be restating. *@
+                   aria- pair would only be restating.
+                   data-bit-esc claims the Escape HandleOnKeyDown acts on (see Utils.claimEscape): the one that
+                   drops the typed term as well as the ones the field around it would claim. *@
                 <input @ref="_comboBoxInputRef"
                        @onkeydown="@HandleOnKeyDown"
+                       data-bit-esc="@ComboEscapeClaim"
                        @oninput="@HandleOnComboInput"
                        @onchange="@HandleOnComboChange"
                        @onfocusin="HandleComboInputFocusIn"
@@ -293,7 +300,8 @@
                        aria-controls="@(comboboxOnFieldInput && IsOpen ? _scrollContainerId : null)"
                        placeholder="@(_selectedItems.Count > 0 ? "" : Placeholder)"
                        autocomplete="@BitAutoCompleteValue.NewPassword"
-                       disabled="@(Disabled)" />
+                       disabled="@(Disabled)"
+                       aria-disabled="@(Disabled ? "true" : null)" />
             }
         </span>
 
@@ -351,7 +359,8 @@
             aria-hidden="true"
             class="bit-input-hidden"
             multiple="@MultiSelect"
-            disabled="@(Disabled)">
+            disabled="@(Disabled)"
+            aria-disabled="@GetInputAriaDisabled(Disabled)">
         @foreach (var item in _selectedItems)
         {
             <option value="@GetValue(item)" selected>@GetText(item)</option>
@@ -575,7 +584,8 @@
                    aria-controls="@(IsOpen ? _scrollContainerId : null)"
                    placeholder="@Placeholder"
                    autocomplete="@BitAutoCompleteValue.NewPassword"
-                   disabled="@(Disabled)" />
+                   disabled="@(Disabled)"
+                   aria-disabled="@(Disabled ? "true" : null)" />
 
             <button @onclick="HandleOnAddItemComboClick" @onclick:stopPropagation
                     type="button"
@@ -607,13 +617,15 @@
                 @* Reached with the arrow keys like the options below it, so it stays out of the tab order too.
                    It sits outside the listbox it commands, so nothing but its aria-controls says which
                    list it is the select all of. *@
+                @{ var selectAllDisabled = Disabled || ReadOnly; }
                 <button @onclick="HandleOnSelectAllClick"
                         type="button"
                         role="checkbox"
                         tabindex="-1"
                         style="@Styles?.SelectAllButton"
                         class="bit-drp-mcn bit-drp-sab @Classes?.SelectAllButton"
-                        disabled="@(Disabled || ReadOnly)"
+                        disabled="@selectAllDisabled"
+                        aria-disabled="@(selectAllDisabled ? "true" : null)"
                         aria-checked="@selectAllAriaChecked"
                         aria-controls="@_scrollContainerId">
                     <div style="@Styles?.SelectAllCheckBox"

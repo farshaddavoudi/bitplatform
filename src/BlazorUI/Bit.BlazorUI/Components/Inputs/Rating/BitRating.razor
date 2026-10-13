@@ -35,7 +35,7 @@
    is ever rendered: the visible label names the group when there is one, the explicit strings when not.
    OnFocusIn and OnFocusOut are raised from Ratings.setup rather than from @onfocusin and @onfocusout, which
    would also report every move of the focus from one item to the next. *@
-<div @ref="RootElement" @attributes="HtmlAttributes"
+<div @ref="RootElement" @attributes="DisabledAwareHtmlAttributes"
      @onkeydown="HandleOnKeyDown"
      id="@_Id"
      class="@ClassBuilder.Value"
@@ -91,6 +91,7 @@
             var itemSelectedIcon = GetSelectedIcon?.Invoke(index) ?? selectedIcon;
             var itemUnselectedIcon = GetUnselectedIcon?.Invoke(index) ?? unselectedIcon;
 
+            var itemDisabled = Disabled || ReadOnly;
             <button @ref="_itemRefs[index - 1]"
                     @onclick="() => HandleOnClick(index)"
                     @onmouseover="() => HandleOnHover(index)"
@@ -105,7 +106,8 @@
                     aria-posinset="@(ReadOnly ? null : index.ToString())"
                     aria-checked="@(ReadOnly ? null : (isChecked ? "true" : "false"))"
                     data-is-current="@(isCurrent ? "true" : "false")"
-                    disabled="@(Disabled || ReadOnly)"
+                    disabled="@itemDisabled"
+                    aria-disabled="@(itemDisabled ? "true" : null)"
                     tabindex="@(ReadOnly ? "-1" : (index == tabbableIndex ? (TabIndex ?? "0") : "-1"))">
 
                 @* A radio whose only content is a decorative glyph has no accessible name at all, so every item
@@ -209,6 +211,7 @@
            readonly="@ReadOnly"
            class="bit-input-hidden"
            disabled="@(Disabled)"
+           aria-disabled="@GetInputAriaDisabled(Disabled)"
            min="@_MinAttribute"
            step="@_StepAttribute"
            value="@CurrentValueAsString" />

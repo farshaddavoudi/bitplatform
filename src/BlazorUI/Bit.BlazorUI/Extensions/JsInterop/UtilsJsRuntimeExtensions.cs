@@ -35,6 +35,14 @@ internal static class UtilsJsRuntimeExtensions
     }
 
 
+    // Whether the element is laid out right to left, which is what a Dir left unset (the page's direction) or set to
+    // Auto (the content's) comes down to - only the browser knows either.
+    internal static ValueTask<bool> BitUtilsIsRtl(this IJSRuntime jsRuntime, ElementReference element)
+    {
+        return jsRuntime.Invoke<bool>("BitBlazorUI.Utils.isRtl", element);
+    }
+
+
     internal static ValueTask<BoundingClientRect> BitUtilsGetBoundingClientRect(this IJSRuntime jsRuntime, ElementReference element)
     {
         return jsRuntime.Invoke<BoundingClientRect>("BitBlazorUI.Utils.getBoundingClientRect", element);
@@ -204,6 +212,21 @@ internal static class UtilsJsRuntimeExtensions
     internal static ValueTask BitUtilsDisposeEscapeGuard(this IJSRuntime jsRuntime, string elementId)
     {
         return jsRuntime.InvokeVoid("BitBlazorUI.Utils.disposeEscapeGuard", elementId);
+    }
+
+
+    // Reports, through the OnEscapeVerdict callback, as each Escape goes down inside the root while it claims the key
+    // (data-bit-esc), whether it was claimed by something inside the root rather than by the root itself; see
+    // Utils.watchEscapeClaim.
+    internal static ValueTask BitUtilsWatchEscapeClaim<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] T>(
+        this IJSRuntime jsRuntime, string id, ElementReference root, DotNetObjectReference<T> dotnetObj) where T : class
+    {
+        return jsRuntime.InvokeVoid("BitBlazorUI.Utils.watchEscapeClaim", id, root, dotnetObj);
+    }
+
+    internal static ValueTask BitUtilsUnwatchEscapeClaim(this IJSRuntime jsRuntime, string id)
+    {
+        return jsRuntime.InvokeVoid("BitBlazorUI.Utils.unwatchEscapeClaim", id);
     }
 
 

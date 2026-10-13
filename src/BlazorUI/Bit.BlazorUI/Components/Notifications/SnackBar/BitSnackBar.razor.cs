@@ -480,7 +480,8 @@ public partial class BitSnackBar : BitComponentBase
     /// skip both animations.
     /// <br />
     /// The duration reaches the stylesheet as a token, so it still collapses under
-    /// <c>prefers-reduced-motion: reduce</c> unless the snack bar opts out with <c>ForceAnimation</c>.
+    /// <c>prefers-reduced-motion: reduce</c> the way the motion tokens of the theme do, and <c>ForceAnimation</c>,
+    /// or an app restoring those tokens, brings it back.
     /// </remarks>
     [Parameter, ResetStyleBuilder]
     public int TransitionDuration { get; set; } = 200;
@@ -973,8 +974,8 @@ public partial class BitSnackBar : BitComponentBase
         StyleBuilder.Register(() => Styles?.Root);
 
         // The duration is handed to the stylesheet as the -full token rather than written into the animations
-        // directly, so the reduced-motion collapse in the stylesheet can still shorten it (an inline duration
-        // would be out of reach of any media query).
+        // directly, so the stylesheet can still scale it by the shared motion factor and the reduced motion
+        // preference collapse it (an inline duration would be out of reach of the motion tokens).
         StyleBuilder.Register(() => FormattableString.Invariant($"--bit-snb-dur-full:{Math.Max(0, TransitionDuration)}ms"));
 
         StyleBuilder.Register(() => Offset.HasValue() ? $"--bit-snb-off:{Offset}" : string.Empty);
@@ -1728,10 +1729,21 @@ public partial class BitSnackBar : BitComponentBase
         // Escape is what closes the thing that has the focus, and while the focus is inside a snack bar that
         // thing is the snack bar. Only the items that can be dismissed at all answer it, so the key never takes
         // away a persistent notification the app is keeping on screen on purpose.
-        if (e.Key != "Escape" || IsDismissible(item) is false) return Task.CompletedTask;
+        // Only the plain key, the one the item claims (EscapeClaim): an Escape with a modifier is left to the surface
+        // around the snack bar.
+        if (e.IsPlainEscape() is false || DismissesOnEscape(item) is false) return Task.CompletedTask;
 
         return DismissAsync(item, animate: true, reason: BitSnackBarDismissReason.Escape, focusNext: true);
     }
+
+    // Whether a plain Escape inside the item dismisses it, the one rule HandleItemKeyDown and EscapeClaim both go by:
+    // an item that can be dismissed at all, and is not already on its way out (DismissAsync leaves one that is alone).
+    private bool DismissesOnEscape(BitSnackBarItem item) => IsDismissible(item) && item._dismissing is false;
+
+    // When HandleItemKeyDown acts on Escape, written onto the item for Utils.claimEscape: read off the same state it
+    // decides on, so a dialog the snack bar sits in stays open on the press that dismisses the item, and a persistent
+    // item leaves the key to the dialog.
+    private string? EscapeClaim(BitSnackBarItem item) => DismissesOnEscape(item) ? "claim" : null;
 
     private Task HandleItemKeyUp(KeyboardEventArgs e, BitSnackBarItem item)
     {
